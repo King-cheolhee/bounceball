@@ -69,6 +69,11 @@ export class Ball {
     this.velocity.y = this.bounceVelocity;
   }
 
+  /** 보호막(백업 셀) 소모 시 위로 튕겨내기 — 위험 지대를 벗어나게 한다. */
+  rebound() {
+    this.velocity.y = this.bounceVelocity;
+  }
+
   bounceOnCeiling(ceilingY: number) {
     this.position.y = ceilingY + this.radius;
     if (this.velocity.y < 0) this.velocity.y = -this.velocity.y * 0.5;

@@ -8,7 +8,8 @@ import {
   incrementPlays,
   resetProgress,
 } from '../services/storage';
-import { INITIAL_LIVES, TOTAL_STAGES } from '../utils/constants';
+import { INITIAL_LIVES, TOTAL_STAGES, CHECKPOINTS, INTERSTITIAL_AD_STAGES } from '../utils/constants';
+import { getUnlockMessage } from '../utils/story';
 
 type Screen = 'splash' | 'menu' | 'play' | 'settings';
 
@@ -18,18 +19,18 @@ interface GameState {
   checkpointStage: number;
   maxClearedStage: number;
   lives: number;
-  bonusLives: number; // 보상형 광고로 받은 추가 목숨
   hydrated: boolean;
   isGameOver: boolean;
   isStageClearing: boolean;
   isPaused: boolean;
   showAd: 'interstitial' | 'rewarded' | null;
   pendingNextStage: number | null;
+  /** 클리어 오버레이에 표시할 해금 메시지 (사운드 칩 채널 복구 등) */
+  lastUnlockMsg: string | null;
 
   hydrate: () => Promise<void>;
   goToScreen: (screen: Screen) => void;
   startFromProgress: () => Promise<void>;
-  startFromCheckpoint: () => Promise<void>;
   onDeath: () => Promise<void>;
   onStageCleared: () => Promise<void>;
   consumeAd: (rewarded: boolean) => void;
@@ -39,7 +40,6 @@ interface GameState {
   pause: () => void;
   resume: () => void;
   reset: () => Promise<void>;
-  beginPlaySession: () => Promise<void>;
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -48,13 +48,13 @@ export const useGameStore = create<GameState>((set, get) => ({
   checkpointStage: 1,
   maxClearedStage: 0,
   lives: INITIAL_LIVES,
-  bonusLives: 0,
   hydrated: false,
   isGameOver: false,
   isStageClearing: false,
   isPaused: false,
   showAd: null,
   pendingNextStage: null,
+  lastUnlockMsg: null,
 
   async hydrate() {
     const data = await loadProgress();
@@ -71,7 +71,6 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   async startFromProgress() {
-    const { currentStage } = get();
     await incrementPlays();
     set({
       screen: 'play',
@@ -81,22 +80,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       isPaused: false,
       showAd: null,
       pendingNextStage: null,
+      lastUnlockMsg: null,
     });
     // currentStage 그대로 사용
-  },
-
-  async startFromCheckpoint() {
-    const cp = await persistReturnToCheckpoint();
-    set({
-      screen: 'play',
-      currentStage: cp,
-      lives: INITIAL_LIVES,
-      isGameOver: false,
-      isStageClearing: false,
-      isPaused: false,
-      showAd: null,
-      pendingNextStage: null,
-    });
   },
 
   async onDeath() {
@@ -118,15 +104,19 @@ export const useGameStore = create<GameState>((set, get) => ({
     const updates: Partial<GameState> = {
       maxClearedStage: Math.max(prevMax, currentStage),
       isStageClearing: true,
+      lastUnlockMsg: getUnlockMessage(currentStage),
     };
     if (next > TOTAL_STAGES) {
-      // 게임 전체 클리어
+      // 게임 전체 클리어 — 다음 회차를 위해 처음부터로 저장
+      // (기존 버그: Stage 20만 반복 재시작됐음 — 수정 완료)
       updates.pendingNextStage = null;
+      await saveProgress({ currentStage: 1, checkpointStage: 1 });
     } else {
       updates.pendingNextStage = next;
     }
-    // 체크포인트 갱신
-    if ([6, 11, 16].includes(next)) {
+    // 체크포인트 갱신 — constants의 CHECKPOINTS 단일 소스 사용
+    // (기존: [6,11,16] 하드코딩이 3곳에 흩어져 있었음 — 통일)
+    if (CHECKPOINTS.includes(next)) {
       updates.checkpointStage = next;
     }
     set(updates);
@@ -135,9 +125,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   consumeAd(rewarded: boolean) {
     const { showAd } = get();
     if (showAd === 'rewarded' && rewarded) {
+      // 부활: 목숨을 3개로 리필 (HUD 하트 3개와 일치 — 기존 6개 버그 수정)
       set({
-        bonusLives: 0,
-        lives: INITIAL_LIVES + 3,
+        lives: INITIAL_LIVES,
         isGameOver: false,
         showAd: null,
       });
@@ -150,6 +140,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           isStageClearing: false,
           lives: INITIAL_LIVES,
           showAd: null,
+          lastUnlockMsg: null,
         });
       } else {
         set({ showAd: null });
@@ -197,6 +188,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   async reset() {
+    // 진행만 초기화 — 해금(부품/스킨)은 unlockStore 소관으로 유지된다
     await resetProgress();
     set({
       currentStage: 1,
@@ -208,11 +200,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       isPaused: false,
       showAd: null,
       pendingNextStage: null,
+      lastUnlockMsg: null,
     });
-  },
-
-  async beginPlaySession() {
-    await incrementPlays();
   },
 }));
 
@@ -221,16 +210,19 @@ export async function advanceAfterClear() {
   const state = useGameStore.getState();
   const next = state.pendingNextStage;
   if (next === null) {
-    // 전체 클리어
+    // 전체 클리어 — 새 회차 준비 상태로 메뉴 복귀
     useGameStore.setState({
       isStageClearing: false,
       screen: 'menu',
+      currentStage: 1,
+      checkpointStage: 1,
+      lastUnlockMsg: null,
     });
     return;
   }
-  // 10, 15 클리어 후 전면 광고
+  // 10, 15 클리어 후 전면 광고 (1~9 완전 무광고 — 앱인토스 다크패턴 금지 준수)
   const previousStage = next - 1;
-  if (previousStage === 10 || previousStage === 15) {
+  if (INTERSTITIAL_AD_STAGES.includes(previousStage)) {
     useGameStore.setState({ showAd: 'interstitial' });
   } else {
     useGameStore.setState({
@@ -238,6 +230,7 @@ export async function advanceAfterClear() {
       pendingNextStage: null,
       isStageClearing: false,
       lives: INITIAL_LIVES,
+      lastUnlockMsg: null,
     });
     await saveProgress({ currentStage: next });
   }

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { STORY } from '../utils/story';
 
 interface Props {
   onDone: () => void;
@@ -39,9 +40,16 @@ export function SplashPage({ onDone }: Props) {
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-30px); }
         }
+        @keyframes splash-blink {
+          0%, 70%, 100% { opacity: 0.4; }
+          80%, 90% { opacity: 1; }
+        }
       `}</style>
       <div style={{ fontSize: 28, fontWeight: 900, letterSpacing: '0.1em', marginTop: 12 }}>탱탱볼해금</div>
-      <div style={{ fontSize: 11, letterSpacing: '0.3em', opacity: 0.4 }}>TANGTANGBALL</div>
+      <div style={{ fontSize: 11, letterSpacing: '0.3em', opacity: 0.4, animation: 'splash-blink 2s infinite' }}>
+        {STORY.titleEn} · {STORY.subtitle}
+      </div>
+      <div style={{ fontSize: 11, opacity: 0.35 }}>{STORY.tagline}</div>
     </div>
   );
 }

@@ -136,6 +136,49 @@ export async function incrementDeaths(): Promise<void> {
   await saveProgress({ totalDeaths: prev.totalDeaths + 1 });
 }
 
+// ===== 해금 시스템 (부품 ◆ / 스킨) =====
+// 주의: 진행 데이터 초기화(resetProgress)에도 해금은 유지된다 — 수집 보상은 소멸하지 않음.
+const KEY_PARTS = 'parts_total';
+const KEY_SKINS = 'unlocked_skins';
+const KEY_SKIN_SELECTED = 'selected_skin';
+
+export interface UnlockData {
+  parts: number;
+  skins: string[];
+  selectedSkin: string;
+}
+
+export async function loadUnlocks(): Promise<UnlockData> {
+  const [parts, skins, selected] = await Promise.all([
+    Storage.getItem(KEY_PARTS),
+    Storage.getItem(KEY_SKINS),
+    Storage.getItem(KEY_SKIN_SELECTED),
+  ]);
+  let skinList: string[] = ['dot'];
+  if (skins) {
+    try {
+      const parsed = JSON.parse(skins);
+      if (Array.isArray(parsed)) skinList = parsed.filter((s): s is string => typeof s === 'string');
+    } catch {
+      // 손상된 데이터 — 기본값 유지
+    }
+  }
+  if (!skinList.includes('dot')) skinList.unshift('dot');
+  return {
+    parts: toInt(parts, 0),
+    skins: skinList,
+    selectedSkin: selected ?? 'dot',
+  };
+}
+
+export async function saveUnlocks(data: Partial<UnlockData>): Promise<void> {
+  const ops: Promise<void>[] = [];
+  if (data.parts !== undefined) ops.push(Storage.setItem(KEY_PARTS, String(data.parts)));
+  if (data.skins !== undefined) ops.push(Storage.setItem(KEY_SKINS, JSON.stringify(data.skins)));
+  if (data.selectedSkin !== undefined) ops.push(Storage.setItem(KEY_SKIN_SELECTED, data.selectedSkin));
+  await Promise.all(ops);
+}
+
 export async function loadSettings(): Promise<{ sound: boolean; haptic: boolean }> {
   const [sound, haptic] = await Promise.all([
     Storage.getItem(KEY_SOUND),

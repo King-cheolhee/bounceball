@@ -1,5 +1,6 @@
 import type { StagesFile, StageData } from '../../utils/types';
 import { getBouncePeriod } from '../entities/Ball';
+import { CEILING_SPIKE_Y } from '../../utils/constants';
 
 const FLOOR_Y = 600;
 const GROUND_LEVEL = 600;
@@ -10,11 +11,24 @@ function floor(x: number, w: number, variant: 'normal' | 'fragile' | 'explosive'
 function spike(x: number, w = 40): StageData['elements'][number] {
   return { type: 'spike', x, y: GROUND_LEVEL, width: w };
 }
-function ceilingSpike(x: number, w = 60, y = 60): StageData['elements'][number] {
+/**
+ * 천장 가시. 기본 y=CEILING_SPIKE_Y(248) — 점프 정점에서만 닿는 높이.
+ * 회피법: 가시 아래를 지날 때 점프 정점이 겹치지 않도록 수평 타이밍 조절.
+ * (기존 y=60은 물리적으로 도달 불가능했던 기획 모순 — 전면 수정)
+ */
+function ceilingSpike(x: number, w = 60, y = CEILING_SPIKE_Y): StageData['elements'][number] {
   return { type: 'ceiling_spike', x, y, width: w };
 }
 function wall(x: number, h = 600, y = 0, w = 8): StageData['elements'][number] {
   return { type: 'wall', x, y, width: w, height: h };
+}
+/** 부품(◆) — 수집 재화. 스킨 해금에 사용. 스테이지 클리어 시에만 적립된다. */
+function part(x: number, y = 440): StageData['elements'][number] {
+  return { type: 'part', x, y };
+}
+/** 백업 셀 — 1회용 보호막. 가시/폭발 1회 무효 (추락은 못 막음). 챕터 3~4에만 희소 배치. */
+function shieldItem(x: number, y = 430): StageData['elements'][number] {
+  return { type: 'shield', x, y };
 }
 
 function spawnGoal(width: number): { spawn: { x: number; y: number }; goal: { x: number; y: number } } {
@@ -34,43 +48,55 @@ function stage(id: number, name: string, width: number, elements: StageData['ele
   };
 }
 
-const STAGES: StageData[] = [
-  // ============== CHAPTER 1: TUTORIAL (1-5) ==============
-  stage(1, '첫 발걸음', 1600, [floor(0, 1600)]),
+// 스토리 B안 「마지막 픽셀 도트」 — 게임기 내부를 깊이 들어가는 4챕터.
+// wall() 헬퍼는 v1.1 후보로 보존 (현재 스테이지에는 미배치, 화면 경계 벽은 엔진이 처리).
+void wall;
 
-  stage(2, '첫 구멍', 1800, [
-    floor(0, 800),
-    floor(1000, 800),
+const STAGES: StageData[] = [
+  // ============== CHAPTER 1: 액정 평원 (1-5) ==============
+  stage(1, '첫 신호', 1600, [
+    floor(0, 1600),
+    part(500), part(800), part(1100),
   ]),
 
-  stage(3, '두 번째 구멍', 2000, [
+  stage(2, '데드 픽셀', 1800, [
+    floor(0, 800),
+    floor(1000, 800),
+    part(400), part(900, 380), part(1400),
+  ]),
+
+  stage(3, '끊어진 셀', 2000, [
     floor(0, 500),
     floor(700, 700),
     floor(1600, 400),
+    part(350), part(600, 390), part(1000), part(1500, 390),
   ]),
 
-  stage(4, '첫 가시', 2000, [
+  stage(4, '정전기 가시', 2000, [
     floor(0, 2000),
     spike(700),
     spike(1300),
+    part(400), part(720, 330), part(1000), part(1320, 330),
   ]),
 
-  stage(5, '조합 첫 단계', 2200, [
+  stage(5, '액정 관문', 2200, [
     floor(0, 700),
     floor(900, 700),
     floor(1800, 400),
     spike(1100),
     spike(1900),
+    part(500), part(800, 390), part(1120, 330), part(1500), part(1920, 330),
   ], { isCheckpointEnd: true }),
 
-  // ============== CHAPTER 2: BASIC (6-10) ==============
-  stage(6, '부서지는 바닥 등장', 2200, [
+  // ============== CHAPTER 2: 기판 회로 (6-10) ==============
+  stage(6, '삭은 동박', 2200, [
     floor(0, 700),
     floor(700, 600, 'fragile'),
     floor(1300, 900),
+    part(400), part(900, 430), part(1100, 430), part(1700),
   ]),
 
-  stage(7, '부서지는 바닥 연속', 2400, [
+  stage(7, '끊어진 배선', 2400, [
     floor(0, 500),
     floor(500, 200, 'fragile'),
     floor(700, 150),
@@ -78,18 +104,20 @@ const STAGES: StageData[] = [
     floor(1050, 150),
     floor(1200, 200, 'fragile'),
     floor(1400, 1000),
+    part(600, 430), part(950, 430), part(1300, 430), part(1800), part(2100),
   ]),
 
-  stage(8, '공중 부서지는 발판', 2400, [
+  stage(8, '공중 점퍼선', 2400, [
     floor(0, 700),
     floor(900, 300, 'fragile'),
     floor(1400, 1000),
     // 공중 부서지는 발판
     { type: 'floor', x: 700, y: 380, width: 220, variant: 'fragile' },
     { type: 'floor', x: 1170, y: 380, width: 220, variant: 'fragile' },
+    part(400), part(810, 210), part(1280, 210), part(1050, 450), part(1800),
   ]),
 
-  stage(9, '정밀 조작 입문', 2600, [
+  stage(9, '미세 납땜', 2600, [
     floor(0, 500),
     floor(700, 300, 'fragile'),
     floor(1000, 200),
@@ -98,9 +126,10 @@ const STAGES: StageData[] = [
     floor(1700, 900),
     spike(1080),
     spike(1490),
+    part(300), part(850, 430), part(1100, 330), part(1300, 430), part(1520, 330), part(2000),
   ]),
 
-  stage(10, '챕터 2 보스', 2800, [
+  stage(10, '회로 관문', 2800, [
     floor(0, 400),
     floor(550, 200),
     floor(750, 200, 'fragile'),
@@ -112,16 +141,19 @@ const STAGES: StageData[] = [
     spike(620),
     spike(1010),
     spike(1820),
+    part(300), part(640, 330), part(850, 430), part(1030, 330),
+    part(1250, 430), part(1450), part(1840, 330), part(2200),
   ], { isCheckpointEnd: true }),
 
-  // ============== CHAPTER 3: APPLIED (11-15) ==============
-  stage(11, '폭발 발판 등장', 2600, [
+  // ============== CHAPTER 3: 콘덴서 지대 (11-15) ==============
+  stage(11, '과전압 주의', 2600, [
     floor(0, 800),
     floor(800, 120, 'explosive'),
     floor(920, 1700),
+    part(400), part(860, 370), part(1300), part(1800), part(2200),
   ]),
 
-  stage(12, '폭발 + 부서짐', 2800, [
+  stage(12, '연쇄 방전', 2800, [
     floor(0, 500),
     floor(500, 100, 'explosive'),
     floor(600, 200, 'fragile'),
@@ -132,9 +164,11 @@ const STAGES: StageData[] = [
     floor(1400, 200, 'fragile'),
     floor(1600, 100, 'explosive'),
     floor(1700, 1100),
+    part(300), part(700, 430), part(1000), part(1450, 430), part(1900),
+    shieldItem(1100, 360),
   ]),
 
-  stage(13, '좁은 안전 구간', 3000, [
+  stage(13, '좁은 절연 구간', 3000, [
     floor(0, 400),
     floor(450, 80, 'explosive'),
     floor(530, 120),
@@ -151,9 +185,11 @@ const STAGES: StageData[] = [
     floor(1610, 120),
     floor(1730, 80, 'explosive'),
     floor(1810, 1200),
+    part(580, 430), part(880, 430), part(1080, 430), part(1270, 430),
+    part(1450, 430), part(1660, 430), part(2200),
   ]),
 
-  stage(14, '공중 가시', 3000, [
+  stage(14, '납땜 침 회랑', 3000, [
     floor(0, 700),
     floor(700, 300, 'fragile'),
     floor(1000, 200),
@@ -163,9 +199,11 @@ const STAGES: StageData[] = [
     ceilingSpike(700, 80),
     ceilingSpike(1300, 80),
     ceilingSpike(1450, 80),
+    part(400, 450), part(630, 450), part(1100), part(1380, 450), part(2000), part(2400),
+    shieldItem(1700),
   ]),
 
-  stage(15, '챕터 3 보스', 3200, [
+  stage(15, '방전 관문', 3200, [
     floor(0, 350),
     floor(380, 150, 'fragile'),
     floor(530, 100, 'explosive'),
@@ -188,10 +226,13 @@ const STAGES: StageData[] = [
     ceilingSpike(1850, 80),
     spike(1050),
     spike(2050),
+    part(200), part(700, 450), part(1030, 330), part(1300, 430),
+    part(1750, 450), part(2050, 330), part(2500), part(2900),
+    shieldItem(450),
   ], { isCheckpointEnd: true }),
 
-  // ============== CHAPTER 4: MASTER (16-20) ==============
-  stage(16, '마스터 입문', 3000, [
+  // ============== CHAPTER 4: CPU 코어 (16-20) ==============
+  stage(16, '오버클럭 입문', 3000, [
     floor(0, 300),
     floor(330, 100, 'fragile'),
     floor(430, 100, 'explosive'),
@@ -211,9 +252,10 @@ const STAGES: StageData[] = [
     floor(2060, 940),
     spike(680),
     spike(1750),
+    part(200), part(680, 330), part(900, 430), part(1250), part(1750, 330), part(2300),
   ]),
 
-  stage(17, '교차 패턴', 3200, [
+  stage(17, '교차 버스', 3200, [
     floor(0, 350),
     floor(380, 100, 'explosive'),
     floor(480, 100, 'fragile'),
@@ -242,9 +284,11 @@ const STAGES: StageData[] = [
     ceilingSpike(1340, 60),
     ceilingSpike(1580, 60),
     ceilingSpike(1880, 60),
+    part(450, 460), part(700, 460), part(1100, 460), part(1600, 460), part(2300), part(2800),
+    shieldItem(1900),
   ]),
 
-  stage(18, '지옥의 회랑', 3400, [
+  stage(18, '버스 폭주', 3400, [
     floor(0, 300),
     floor(320, 100, 'fragile'),
     floor(420, 100),
@@ -266,9 +310,11 @@ const STAGES: StageData[] = [
     floor(2020, 100, 'explosive'),
     floor(2120, 100, 'fragile'),
     floor(2220, 1180),
+    part(350, 430), part(800), part(1300), part(1800), part(2400), part(2800), part(3000),
+    shieldItem(1170, 360),
   ]),
 
-  stage(19, '최종 시험', 3400, [
+  stage(19, '마지막 연산', 3400, [
     floor(0, 280),
     floor(300, 80, 'explosive'),
     floor(380, 100, 'fragile'),
@@ -282,7 +328,7 @@ const STAGES: StageData[] = [
     floor(1100, 80),
     floor(1180, 80, 'explosive'),
     floor(1260, 100, 'fragile'),
-    // 큰 구멍
+    // 큰 구멍 (1360~1600)
     floor(1600, 100, 'fragile'),
     floor(1700, 80, 'explosive'),
     floor(1780, 80, 'fragile'),
@@ -306,9 +352,12 @@ const STAGES: StageData[] = [
     ceilingSpike(2060, 60),
     ceilingSpike(2240, 60),
     ceilingSpike(2420, 60),
+    part(320, 450), part(800, 450), part(1150, 450), part(1450, 390),
+    part(2150, 430), part(2700), part(3000),
+    shieldItem(2350),
   ]),
 
-  stage(20, '그랜드 마스터', 3600, [
+  stage(20, '코어 점화', 3600, [
     floor(0, 250),
     floor(270, 80, 'explosive'),
     floor(350, 80, 'fragile'),
@@ -320,7 +369,7 @@ const STAGES: StageData[] = [
     floor(850, 80, 'fragile'),
     floor(930, 80, 'fragile'),
     floor(1010, 80, 'explosive'),
-    // 큰 구멍
+    // 큰 구멍 (1090~1340)
     floor(1340, 80, 'fragile'),
     floor(1420, 80, 'explosive'),
     floor(1500, 80, 'fragile'),
@@ -348,11 +397,14 @@ const STAGES: StageData[] = [
     ceilingSpike(2100, 60),
     ceilingSpike(2260, 60),
     ceilingSpike(2420, 60),
+    part(300, 450), part(560, 430), part(800, 450), part(1180, 390),
+    part(1500, 450), part(1790, 430), part(2050), part(2700),
+    shieldItem(1740, 360),
   ]),
 ];
 
 export const STAGES_DATA: StagesFile = {
-  version: 2,
+  version: 3,
   totalStages: STAGES.length,
   checkpoints: [1, 6, 11, 16],
   stages: STAGES,

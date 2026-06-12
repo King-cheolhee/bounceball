@@ -6,6 +6,7 @@ import { GamePlayPage } from './pages/GamePlayPage';
 import { RotatePrompt } from './components/RotatePrompt';
 import { useGameStore } from './stores/gameStore';
 import { useSettingsStore } from './stores/settingsStore';
+import { useUnlockStore } from './stores/unlockStore';
 import { useViewportSize } from './hooks/useViewportSize';
 import { getUserKeyForGame } from './services/auth';
 import { sound } from './services/sound';
@@ -20,19 +21,21 @@ export function App() {
 
   const settingsHydrated = useSettingsStore((s) => s.hydrated);
   const hydrateSettings = useSettingsStore((s) => s.hydrate);
+  const unlocksHydrated = useUnlockStore((s) => s.hydrated);
+  const hydrateUnlocks = useUnlockStore((s) => s.hydrate);
 
   const viewport = useViewportSize();
   const [ready, setReady] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
 
-  // 진행 데이터, 설정, 유저키 hydrate
+  // 진행 데이터, 설정, 해금, 유저키 hydrate
   useEffect(() => {
     void (async () => {
-      await Promise.all([hydrate(), hydrateSettings(), getUserKeyForGame()]);
+      await Promise.all([hydrate(), hydrateSettings(), hydrateUnlocks(), getUserKeyForGame()]);
       setReady(true);
       logEvent('app_ready');
     })();
-  }, [hydrate, hydrateSettings]);
+  }, [hydrate, hydrateSettings, hydrateUnlocks]);
 
   // 사용자 첫 입력으로 오디오 활성화 (모바일 정책)
   useEffect(() => {
@@ -47,16 +50,21 @@ export function App() {
     };
   }, []);
 
+  // 스플래시 종료 + 데이터 준비 완료 → 메뉴로 (스플래시 이중 표시 버그 수정:
+  // 기존에는 로딩용/화면용 스플래시가 따로 렌더되어 애니메이션이 두 번 재생됐음)
+  useEffect(() => {
+    if (ready && hydrated && settingsHydrated && unlocksHydrated && splashDone && screen === 'splash') {
+      goToScreen('menu');
+    }
+  }, [ready, hydrated, settingsHydrated, unlocksHydrated, splashDone, screen, goToScreen]);
+
   // 큰 PC 화면이 아니고, 모바일이며 세로일 때만 회전 프롬프트
   const isMobile = viewport.width < 900 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
   const needsRotation = isMobile && !viewport.isLandscape;
 
-  if (!ready || !hydrated || !settingsHydrated) {
+  const loading = !ready || !hydrated || !settingsHydrated || !unlocksHydrated;
+  if (loading || (screen === 'splash' && !splashDone)) {
     return <SplashPage onDone={() => setSplashDone(true)} />;
-  }
-
-  if (!splashDone && screen === 'splash') {
-    return <SplashPage onDone={() => { setSplashDone(true); goToScreen('menu'); }} />;
   }
 
   return (
@@ -64,7 +72,6 @@ export function App() {
       {needsRotation && <RotatePrompt />}
       {!needsRotation && (
         <>
-          {screen === 'splash' && <SplashPage onDone={() => goToScreen('menu')} />}
           {screen === 'menu' && (
             <MainMenuPage
               onStart={async () => {

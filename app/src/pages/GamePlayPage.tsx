@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { GameEngine } from '../game/engine/GameEngine';
 import { TOTAL_STAGES, STAGE_CLEAR_OVERLAY_MS } from '../utils/constants';
 import { advanceAfterClear, useGameStore } from '../stores/gameStore';
+import { useUnlockStore } from '../stores/unlockStore';
 import { useViewportSize } from '../hooks/useViewportSize';
 import { useVisibilityPause } from '../hooks/useVisibilityPause';
 import { HudHearts } from '../components/HudHearts';
@@ -11,9 +12,11 @@ import { GameOverOverlay } from '../components/GameOverOverlay';
 import { StageClearOverlay } from '../components/StageClearOverlay';
 import { MockAdOverlay } from '../components/MockAdOverlay';
 import { sound } from '../services/sound';
+import { music } from '../services/music';
 import { submitScore } from '../services/leaderboard';
-import { showInterstitial, showRewarded } from '../services/ads';
+import { preloadAd } from '../services/ads';
 import { logEvent } from '../services/analytics';
+import { getBgmLayers } from '../utils/story';
 
 interface Props {
   onExit: () => void;
@@ -23,6 +26,7 @@ export function GamePlayPage({ onExit }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const touchTargetRef = useRef<HTMLDivElement | null>(null);
   const engineRef = useRef<GameEngine | null>(null);
+  const stageEffectMounted = useRef(false);
   const viewport = useViewportSize();
 
   const currentStage = useGameStore((s) => s.currentStage);
@@ -31,8 +35,8 @@ export function GamePlayPage({ onExit }: Props) {
   const isStageClearing = useGameStore((s) => s.isStageClearing);
   const isPaused = useGameStore((s) => s.isPaused);
   const showAd = useGameStore((s) => s.showAd);
-  const pendingNextStage = useGameStore((s) => s.pendingNextStage);
   const maxClearedStage = useGameStore((s) => s.maxClearedStage);
+  const lastUnlockMsg = useGameStore((s) => s.lastUnlockMsg);
 
   const onDeath = useGameStore((s) => s.onDeath);
   const onStageCleared = useGameStore((s) => s.onStageCleared);
@@ -43,7 +47,11 @@ export function GamePlayPage({ onExit }: Props) {
   const reviveWithAd = useGameStore((s) => s.reviveWithAd);
   const consumeAd = useGameStore((s) => s.consumeAd);
 
+  const selectedSkin = useUnlockStore((s) => s.selectedSkin);
+  const addParts = useUnlockStore((s) => s.addParts);
+
   const [allCleared, setAllCleared] = useState(false);
+  const [runParts, setRunParts] = useState(0);
 
   // Engine 초기화 (canvas mount 후 1회)
   useEffect(() => {
@@ -62,17 +70,21 @@ export function GamePlayPage({ onExit }: Props) {
           engine.loadStage(state.currentStage);
         }
       },
-      onStageClear: async (stageId) => {
+      onStageClear: async (stageId, partsCollected) => {
+        // 부품은 클리어해야 적립 (죽으면 그 시도분 소멸 — 재도전 동기)
+        await addParts(partsCollected);
         await onStageCleared();
         if (stageId >= TOTAL_STAGES) {
           setAllCleared(true);
-          await submitScore(stageId);
-        } else {
-          await submitScore(stageId);
         }
+        await submitScore(stageId);
+      },
+      onPartsChange: (parts) => {
+        setRunParts(parts);
       },
     });
     engineRef.current = engine;
+    engine.setSkin(useUnlockStore.getState().selectedSkin);
     engine.attach(touchTarget);
     engine.resize(viewport.width, viewport.height);
     engine.loadStage(useGameStore.getState().currentStage);
@@ -80,9 +92,14 @@ export function GamePlayPage({ onExit }: Props) {
     sound.unlock();
     logEvent('stage_enter', { stage: useGameStore.getState().currentStage });
 
+    // 광고 사전 로딩 — 앱인토스 정책 (실시간 로딩 금지)
+    void preloadAd('interstitial');
+    void preloadAd('rewarded');
+
     return () => {
       engine.destroy();
       engineRef.current = null;
+      music.stop();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -91,6 +108,21 @@ export function GamePlayPage({ onExit }: Props) {
   useEffect(() => {
     engineRef.current?.resize(viewport.width, viewport.height);
   }, [viewport.width, viewport.height]);
+
+  // 스킨 변경 반영
+  useEffect(() => {
+    engineRef.current?.setSkin(selectedSkin);
+  }, [selectedSkin]);
+
+  // BGM — 해금된 사운드 칩 채널 수만큼 적층, 템포는 스테이지 따라 상승
+  useEffect(() => {
+    const layers = getBgmLayers(maxClearedStage);
+    if (music.isPlaying()) {
+      music.setProgress(layers, currentStage);
+    } else {
+      music.start(layers, currentStage);
+    }
+  }, [currentStage, maxClearedStage]);
 
   // 일시정지/재개 동기화
   useEffect(() => {
@@ -103,7 +135,12 @@ export function GamePlayPage({ onExit }: Props) {
   }, [isPaused, isGameOver, isStageClearing, showAd]);
 
   // 현재 스테이지가 바뀌면 엔진에도 반영
+  // (mount 시에는 위의 초기화 effect가 이미 로드했으므로 건너뜀 — 이중 로드 버그 수정)
   useEffect(() => {
+    if (!stageEffectMounted.current) {
+      stageEffectMounted.current = true;
+      return;
+    }
     if (!engineRef.current) return;
     if (isGameOver || isStageClearing || showAd) return;
     engineRef.current.loadStage(currentStage);
@@ -116,11 +153,11 @@ export function GamePlayPage({ onExit }: Props) {
     if (!isStageClearing || allCleared) return;
     const id = setTimeout(() => {
       void advanceAfterClear();
-    }, STAGE_CLEAR_OVERLAY_MS);
+    }, lastUnlockMsg ? STAGE_CLEAR_OVERLAY_MS + 900 : STAGE_CLEAR_OVERLAY_MS);
     return () => clearTimeout(id);
-  }, [isStageClearing, allCleared]);
+  }, [isStageClearing, allCleared, lastUnlockMsg]);
 
-  // 광고 표시 처리
+  // 광고 표시 중 게임 사운드 일시정지 (검수 요건)
   useEffect(() => {
     if (!showAd) return;
     sound.suspend();
@@ -138,20 +175,6 @@ export function GamePlayPage({ onExit }: Props) {
       // 복귀 시 자동 재개하지 않고 사용자가 직접 누르도록 (사고 방지)
     }, []),
   );
-
-  const handleAdLaunch = useCallback(async () => {
-    if (showAd === 'interstitial') {
-      await showInterstitial();
-    } else if (showAd === 'rewarded') {
-      await showRewarded();
-    }
-  }, [showAd]);
-
-  useEffect(() => {
-    if (showAd) {
-      void handleAdLaunch();
-    }
-  }, [showAd, handleAdLaunch]);
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#000' }}>
@@ -188,8 +211,13 @@ export function GamePlayPage({ onExit }: Props) {
           zIndex: 3,
         }}
       >
-        <div style={{ fontSize: 14, letterSpacing: '0.2em', opacity: 0.85 }}>
-          STAGE {String(currentStage).padStart(2, '0')} <span style={{ opacity: 0.4 }}>/ {TOTAL_STAGES}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <span style={{ fontSize: 14, letterSpacing: '0.2em', opacity: 0.85 }}>
+            STAGE {String(currentStage).padStart(2, '0')} <span style={{ opacity: 0.4 }}>/ {TOTAL_STAGES}</span>
+          </span>
+          <span style={{ fontSize: 13, opacity: 0.8, fontVariantNumeric: 'tabular-nums' }}>
+            ◆ {runParts}
+          </span>
         </div>
         <div style={{ pointerEvents: 'auto' }}>
           <Button
@@ -269,6 +297,8 @@ export function GamePlayPage({ onExit }: Props) {
           <StageClearOverlay
             stage={currentStage}
             totalCleared={allCleared}
+            unlockMsg={lastUnlockMsg}
+            partsCollected={runParts}
             onContinue={() => {
               if (allCleared) {
                 setAllCleared(false);
@@ -309,7 +339,7 @@ export function GamePlayPage({ onExit }: Props) {
             pointerEvents: 'none',
           }}
         >
-          DEV · ← / → 이동 · MAX {maxClearedStage} · NEXT {pendingNextStage ?? '-'}
+          DEV · ← / → 이동 · MAX {maxClearedStage}
         </div>
       )}
     </div>

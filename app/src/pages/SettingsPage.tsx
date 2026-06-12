@@ -1,15 +1,24 @@
 import { Button } from '../components/Button';
 import { useSettingsStore } from '../stores/settingsStore';
+import { useUnlockStore } from '../stores/unlockStore';
+import { SKINS } from '../utils/skins';
+import { sound } from '../services/sound';
 
 interface Props {
   onBack: () => void;
 }
 
 export function SettingsPage({ onBack }: Props) {
-  const sound = useSettingsStore((s) => s.sound);
-  const haptic = useSettingsStore((s) => s.haptic);
+  const soundOn = useSettingsStore((s) => s.sound);
+  const hapticOn = useSettingsStore((s) => s.haptic);
   const setSound = useSettingsStore((s) => s.setSound);
   const setHaptic = useSettingsStore((s) => s.setHaptic);
+
+  const parts = useUnlockStore((s) => s.parts);
+  const unlockedSkins = useUnlockStore((s) => s.unlockedSkins);
+  const selectedSkin = useUnlockStore((s) => s.selectedSkin);
+  const buySkin = useUnlockStore((s) => s.buySkin);
+  const selectSkin = useUnlockStore((s) => s.selectSkin);
 
   return (
     <div
@@ -18,10 +27,11 @@ export function SettingsPage({ onBack }: Props) {
         inset: 0,
         background: '#000',
         color: '#fff',
-        padding: 'calc(28px + var(--safe-top)) calc(40px + var(--safe-right)) calc(28px + var(--safe-bottom)) calc(40px + var(--safe-left))',
+        padding: 'calc(24px + var(--safe-top)) calc(40px + var(--safe-right)) calc(24px + var(--safe-bottom)) calc(40px + var(--safe-left))',
         display: 'flex',
         flexDirection: 'column',
         fontFamily: 'Inter, Pretendard, sans-serif',
+        overflowY: 'auto',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -29,22 +39,87 @@ export function SettingsPage({ onBack }: Props) {
         <Button onClick={onBack} variant="ghost" size="sm">← 메뉴</Button>
       </div>
 
-      <div style={{ marginTop: 36, display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 480 }}>
+      <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 520 }}>
         <Row
           label="사운드"
-          desc="효과음 재생 (백그라운드 전환 시 자동 일시정지)"
-          enabled={sound}
-          onToggle={() => setSound(!sound)}
+          desc="효과음·BGM 재생 (백그라운드 전환 시 자동 일시정지)"
+          enabled={soundOn}
+          onToggle={() => setSound(!soundOn)}
         />
         <Row
           label="진동(햅틱)"
           desc="기기 진동으로 충돌 피드백"
-          enabled={haptic}
-          onToggle={() => setHaptic(!haptic)}
+          enabled={hapticOn}
+          onToggle={() => setHaptic(!hapticOn)}
         />
+        <div style={{ fontSize: 11, opacity: 0.4, lineHeight: 1.5 }}>
+          ⓘ iPhone에서 소리가 나지 않으면 측면 무음 스위치를 확인하세요.
+        </div>
       </div>
 
-      <div style={{ marginTop: 'auto', fontSize: 11, opacity: 0.4, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+      {/* 스킨 샵 — 부품(◆)으로 해금. 외형만 변화, 밸런스 영향 없음 */}
+      <div style={{ marginTop: 32, maxWidth: 520 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '0.06em' }}>스킨</div>
+          <div style={{ fontSize: 13, opacity: 0.75, fontVariantNumeric: 'tabular-nums' }}>보유 ◆ {parts}</div>
+        </div>
+        <div style={{ fontSize: 11, opacity: 0.45, marginTop: 4 }}>
+          스테이지에서 부품(◆)을 모아 클리어하면 적립됩니다. 스킨은 모양·잔상만 바뀝니다.
+        </div>
+        <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {SKINS.map((skin) => {
+            const owned = unlockedSkins.includes(skin.id);
+            const selected = selectedSkin === skin.id;
+            const affordable = parts >= skin.cost;
+            return (
+              <div
+                key={skin.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '12px 16px',
+                  border: selected ? '2px solid #fff' : '1px solid rgba(255,255,255,0.25)',
+                  borderRadius: 6,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>
+                    {skin.name}
+                    {selected && <span style={{ fontSize: 11, opacity: 0.7, marginLeft: 8 }}>사용 중</span>}
+                  </div>
+                  <div style={{ fontSize: 11, opacity: 0.5, marginTop: 3 }}>{skin.desc}</div>
+                </div>
+                <div>
+                  {owned ? (
+                    selected ? (
+                      <span style={{ fontSize: 12, opacity: 0.6, letterSpacing: '0.1em' }}>✓</span>
+                    ) : (
+                      <Button onClick={() => void selectSkin(skin.id)} variant="secondary" size="sm">
+                        선택
+                      </Button>
+                    )
+                  ) : (
+                    <Button
+                      onClick={async () => {
+                        const ok = await buySkin(skin.id);
+                        if (ok) sound.play('unlock');
+                      }}
+                      variant={affordable ? 'primary' : 'ghost'}
+                      size="sm"
+                      disabled={!affordable}
+                    >
+                      해금 ◆ {skin.cost}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{ marginTop: 28, fontSize: 11, opacity: 0.4, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
         앱인토스 정책 준수 · 다크 모드 미지원 (라이트 기준 흑백 디자인)
       </div>
     </div>

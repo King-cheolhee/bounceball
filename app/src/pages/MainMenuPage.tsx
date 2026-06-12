@@ -1,17 +1,27 @@
 import { useEffect, useState } from 'react';
 import { Button } from '../components/Button';
 import { useGameStore } from '../stores/gameStore';
+import { useUnlockStore } from '../stores/unlockStore';
 import { TOTAL_STAGES } from '../utils/constants';
+import { STORY, CHAPTERS } from '../utils/story';
+import { getSkin } from '../utils/skins';
 
 interface Props {
   onStart: () => void;
   onSettings: () => void;
 }
 
+/**
+ * 메인 메뉴 — B안 「마지막 픽셀 도트」.
+ * 클리어한 스테이지만큼 LCD 세그먼트가 한 칸씩 점등된다:
+ * 죽어가던 게임기 화면이 플레이어의 진행으로 되살아나는 진행도 시각화.
+ */
 export function MainMenuPage({ onStart, onSettings }: Props) {
   const currentStage = useGameStore((s) => s.currentStage);
   const checkpointStage = useGameStore((s) => s.checkpointStage);
   const maxClearedStage = useGameStore((s) => s.maxClearedStage);
+  const parts = useUnlockStore((s) => s.parts);
+  const selectedSkin = useUnlockStore((s) => s.selectedSkin);
   const allCleared = maxClearedStage >= TOTAL_STAGES;
   const [confirmReset, setConfirmReset] = useState(false);
   const reset = useGameStore((s) => s.reset);
@@ -31,29 +41,68 @@ export function MainMenuPage({ onStart, onSettings }: Props) {
         color: '#fff',
         display: 'flex',
         flexDirection: 'column',
-        padding: 'calc(28px + var(--safe-top)) calc(40px + var(--safe-right)) calc(28px + var(--safe-bottom)) calc(40px + var(--safe-left))',
+        padding: 'calc(24px + var(--safe-top)) calc(40px + var(--safe-right)) calc(20px + var(--safe-bottom)) calc(40px + var(--safe-left))',
         fontFamily: 'Inter, Pretendard, sans-serif',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <div style={{ fontSize: 11, letterSpacing: '0.3em', opacity: 0.5 }}>TANGTANGBALL</div>
-          <div style={{ fontSize: 32, fontWeight: 900, marginTop: 6, letterSpacing: '0.06em' }}>탱탱볼해금</div>
+          <div style={{ fontSize: 11, letterSpacing: '0.3em', opacity: 0.5 }}>
+            {STORY.titleEn} · {STORY.subtitle}
+          </div>
+          <div style={{ fontSize: 30, fontWeight: 900, marginTop: 6, letterSpacing: '0.06em' }}>탱탱볼해금</div>
+          <div style={{ fontSize: 11, opacity: 0.45, marginTop: 4 }}>{STORY.tagline}</div>
         </div>
-        <Button onClick={onSettings} variant="ghost" size="sm" ariaLabel="설정">
-          ⚙ 설정
-        </Button>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+          <Button onClick={onSettings} variant="ghost" size="sm" ariaLabel="설정">
+            ⚙ 설정 · 스킨
+          </Button>
+          <div style={{ fontSize: 12, opacity: 0.7, fontVariantNumeric: 'tabular-nums' }}>
+            ◆ {parts} · 스킨: {getSkin(selectedSkin).name}
+          </div>
+        </div>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 24 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 18 }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 12, letterSpacing: '0.3em', opacity: 0.5 }}>NEXT STAGE</div>
-          <div style={{ fontSize: 96, fontWeight: 900, lineHeight: 1, letterSpacing: '-0.02em', marginTop: 6 }}>
+          <div style={{ fontSize: 12, letterSpacing: '0.3em', opacity: 0.5 }}>
+            {allCleared ? 'SYSTEM REBOOTED ✓' : 'NEXT STAGE'}
+          </div>
+          <div style={{ fontSize: 84, fontWeight: 900, lineHeight: 1, letterSpacing: '-0.02em', marginTop: 6 }}>
             {String(currentStage).padStart(2, '0')}
           </div>
-          <div style={{ fontSize: 13, opacity: 0.55, marginTop: 12 }}>
-            체크포인트 {checkpointStage} · 최고 기록 Stage {maxClearedStage || '—'}
+          <div style={{ fontSize: 13, opacity: 0.55, marginTop: 10 }}>
+            세이브 셀 {checkpointStage} · 최고 기록 Stage {maxClearedStage || '—'}
           </div>
+        </div>
+
+        {/* LCD 세그먼트 진행도 — 깬 만큼 화면이 되살아난다 */}
+        <div style={{ display: 'flex', gap: 14 }}>
+          {CHAPTERS.map((ch) => (
+            <div key={ch.id} style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 3 }}>
+                {Array.from({ length: ch.to - ch.from + 1 }).map((_, i) => {
+                  const stageNo = ch.from + i;
+                  const lit = stageNo <= maxClearedStage;
+                  return (
+                    <div
+                      key={stageNo}
+                      style={{
+                        width: 14,
+                        height: 20,
+                        background: lit ? '#fff' : 'transparent',
+                        border: '1px solid rgba(255,255,255,0.45)',
+                      }}
+                      aria-label={`스테이지 ${stageNo} ${lit ? '복구됨' : '미복구'}`}
+                    />
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: 9, letterSpacing: '0.16em', opacity: maxClearedStage >= ch.to ? 0.9 : 0.35 }}>
+                {ch.en}
+              </div>
+            </div>
+          ))}
         </div>
 
         <Button onClick={onStart} size="lg" style={{ minWidth: 240 }}>
@@ -71,7 +120,7 @@ export function MainMenuPage({ onStart, onSettings }: Props) {
               color: '#fff',
               background: 'transparent',
               border: 'none',
-              padding: 8,
+              padding: 6,
               cursor: 'pointer',
             }}
           >
@@ -80,7 +129,7 @@ export function MainMenuPage({ onStart, onSettings }: Props) {
         )}
         {confirmReset && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 12, opacity: 0.7 }}>정말 초기화할까요?</span>
+            <span style={{ fontSize: 12, opacity: 0.7 }}>정말 초기화할까요? (부품·스킨은 유지)</span>
             <Button
               onClick={async () => {
                 await reset();

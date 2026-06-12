@@ -1,4 +1,4 @@
-export type ElementType = 'floor' | 'spike' | 'ceiling_spike' | 'wall';
+export type ElementType = 'floor' | 'spike' | 'ceiling_spike' | 'wall' | 'part' | 'shield';
 export type FloorVariant = 'normal' | 'fragile' | 'explosive';
 
 export interface StageElement {

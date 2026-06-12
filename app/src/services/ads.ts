@@ -2,8 +2,13 @@
  * 광고 추상화 레이어. 1단계: Mock(짧은 검정 페이드 + 카운트다운 시뮬레이션).
  * 2단계: `@apps-in-toss/framework`의 `loadAppsInTossAdMob` / `showAppsInTossAdMob`로 교체.
  *
+ * 현재 Mock 단계의 단일 경로: gameStore.showAd → GamePlayPage가 MockAdOverlay를
+ * 직접 렌더 → onClose → consumeAd. (기존의 'mock-ad:show' CustomEvent 경로는
+ * 리스너가 없어 Promise가 영원히 안 끝나는 버그였음 — 호출부를 제거했고,
+ * showInterstitial/showRewarded는 Phase 4에서 실제 SDK 호출로 교체할 자리만 유지.)
+ *
  * 앱인토스 정책 준수:
- * - 사전 로딩 (실시간 로딩 금지)
+ * - 사전 로딩 (실시간 로딩 금지) — GamePlayPage 진입 시 preloadAd 호출
  * - 광고 재생 중 게임 음악 일시정지
  * - 종료 후 음악 자동 재개
  * - 보상형은 완전 시청 시에만 보상 지급

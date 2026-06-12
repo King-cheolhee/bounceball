@@ -9,6 +9,7 @@ interface Props {
   fullWidth?: boolean;
   ariaLabel?: string;
   style?: CSSProperties;
+  disabled?: boolean;
 }
 
 export function Button({
@@ -19,6 +20,7 @@ export function Button({
   fullWidth,
   ariaLabel,
   style,
+  disabled,
 }: Props) {
   const padding = size === 'sm' ? '8px 16px' : size === 'lg' ? '14px 32px' : '10px 24px';
   const fontSize = size === 'sm' ? 13 : size === 'lg' ? 18 : 15;
@@ -35,7 +37,9 @@ export function Button({
     <button
       type="button"
       aria-label={ariaLabel}
+      disabled={disabled}
       onClick={() => {
+        if (disabled) return;
         sound.play('button');
         onClick?.();
       }}
@@ -51,7 +55,8 @@ export function Button({
         color,
         borderRadius: 6,
         width: fullWidth ? '100%' : 'auto',
-        cursor: 'pointer',
+        cursor: disabled ? 'default' : 'pointer',
+        opacity: disabled ? 0.35 : 1,
         transition: 'transform 0.08s ease-out, opacity 0.15s ease-out',
         ...style,
       }}

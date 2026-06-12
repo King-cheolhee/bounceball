@@ -74,6 +74,12 @@ export class Ball {
     this.velocity.y = this.bounceVelocity;
   }
 
+  /** 천장 가시에서 보호막 소모 시 — 아래로 밀어내 가시 띠를 벗어나게 한다.
+   *  (위로 튕기면 가시 안으로 더 들어가 무적 루프 후 사망 — 리뷰 확정 버그 수정) */
+  reboundDown() {
+    this.velocity.y = Math.abs(this.bounceVelocity) * 0.6;
+  }
+
   bounceOnCeiling(ceilingY: number) {
     this.position.y = ceilingY + this.radius;
     if (this.velocity.y < 0) this.velocity.y = -this.velocity.y * 0.5;

@@ -10,9 +10,11 @@ import {
   DEATH_FREEZE_MS,
   STAGE_INTRO_COOLDOWN_MS,
   SPIKE_HEIGHT,
+  CEILING_SPIKE_HEIGHT,
   COMBO_OVERCLOCK,
   NEAR_MISS_HITSTOP_MS,
   SHIELD_INVULN_MS,
+  PHYSICS_STEP,
 } from '../../utils/constants';
 import { sound } from '../../services/sound';
 import { haptic } from '../../services/haptic';
@@ -52,7 +54,14 @@ export class GameEngine {
   private deathReason: DeathReason | null = null;
   private deathStartTime = 0;
   private introStart = 0;
+  /**
+   * 게임 시계(ms) — update()에서만 dt만큼 누적된다.
+   * 일시정지 중에는 멈추므로 인트로 유예·사망 프리즈·무적·히트스톱이
+   * 일시정지를 무시하고 소진되지 않는다. (벽시계 사용은 리뷰 확정 버그였음)
+   */
   private timeMs = 0;
+  /** 고정 타임스텝 누적기 — 점프 높이가 기기 프레임레이트와 무관해진다 */
+  private accumulator = 0;
   private paused = false;
   private destroyed = false;
   private skin: SkinId = DEFAULT_SKIN;
@@ -125,16 +134,15 @@ export class GameEngine {
     this.shield = false;
     this.invulnUntil = 0;
     this.hitstopUntil = 0;
+    this.accumulator = 0;
     this.runParts = 0;
     this.events.onPartsChange(0);
     this.flashAmount = 0;
     this.phase = 'intro';
     this.deathReason = null;
     this.input.clear();
-    // 시간 기반 인트로 — 기존 setTimeout 방식은 스테이지 연속 로드 시
-    // 타이머가 살아남아 페이즈를 잘못 바꾸는 경합이 있었다 (수정 완료)
-    this.introStart = performance.now();
-    this.timeMs = this.introStart;
+    // 게임 시계 기준 인트로 — setTimeout(경합)도 벽시계(일시정지 무시)도 아님
+    this.introStart = this.timeMs;
   }
 
   start() {
@@ -144,7 +152,6 @@ export class GameEngine {
       if (this.destroyed) return;
       const dt = Math.min((time - this.lastTime) / 1000, 0.05);
       this.lastTime = time;
-      this.timeMs = time;
       if (!this.paused) {
         this.update(dt);
       }
@@ -178,6 +185,7 @@ export class GameEngine {
   private update(dt: number) {
     if (!this.stage) return;
 
+    this.timeMs += dt * 1000; // 게임 시계 — 일시정지 중에는 update가 불리지 않아 자동 정지
     this.camera.update(dt * 1000);
     this.particles.update(dt);
 
@@ -185,7 +193,7 @@ export class GameEngine {
       if (this.timeMs - this.introStart >= STAGE_INTRO_COOLDOWN_MS) {
         this.phase = 'playing';
       }
-      this.camera.follow(this.ball.position.x);
+      this.camera.follow(this.ball.position.x, dt);
       return;
     }
 
@@ -203,21 +211,39 @@ export class GameEngine {
     if (this.phase === 'cleared') {
       this.ball.update(dt, { left: false, right: false });
       this.updateTrail();
-      this.camera.follow(this.ball.position.x);
+      this.camera.follow(this.ball.position.x, dt);
       return;
     }
 
     // 근소실패 히트스톱 — 짧은 시간 물리 정지 (연출)
     if (this.timeMs < this.hitstopUntil) {
-      this.camera.follow(this.ball.position.x);
+      this.camera.follow(this.ball.position.x, dt);
       return;
     }
+
+    // 고정 타임스텝 물리 — 프레임레이트가 달라도 점프 높이·궤적이 동일
+    const input = this.input.getInput();
+    this.accumulator += dt;
+    while (this.accumulator >= PHYSICS_STEP && this.phase === 'playing') {
+      this.accumulator -= PHYSICS_STEP;
+      this.stepPhysics(PHYSICS_STEP, input);
+      if (this.timeMs < this.hitstopUntil) break; // 근소실패 발생 — 남은 스텝 중단
+    }
+
+    if (this.phase === 'playing' || this.phase === 'cleared') {
+      this.updateTrail();
+    }
+    this.camera.follow(this.ball.position.x, dt);
+  }
+
+  /** 물리 1스텝 (PHYSICS_STEP 고정) — 이동·충돌·게임 이벤트 */
+  private stepPhysics(step: number, input: { left: boolean; right: boolean }) {
+    if (!this.stage) return;
 
     const prevX = this.ball.position.x;
     const prevY = this.ball.position.y;
 
-    const input = this.input.getInput();
-    this.ball.update(dt, input);
+    this.ball.update(step, input);
 
     // 벽 - 스테이지 좌우 경계
     if (this.ball.position.x - this.ball.radius < 0) {
@@ -263,8 +289,9 @@ export class GameEngine {
     if (collision.death) {
       const lethal = collision.death;
       if (lethal !== 'fall' && this.timeMs < this.invulnUntil) {
-        // 보호막 소모 직후 무적 — 무시하고 위로 탈출
-        this.ball.rebound();
+        // 보호막 소모 직후 무적 — 위험 방향에 따라 탈출 (천장 가시는 아래로)
+        if (lethal === 'ceiling-spike') this.ball.reboundDown();
+        else this.ball.rebound();
       } else if (lethal !== 'fall' && this.shield) {
         this.consumeShield(lethal, collision.deathIndex);
       } else {
@@ -305,9 +332,6 @@ export class GameEngine {
       this.particles.ring(this.ball.position.x, this.ball.position.y, 140, 320);
       this.events.onStageClear(this.stage.id, this.runParts);
     }
-
-    this.updateTrail();
-    this.camera.follow(this.ball.position.x);
   }
 
   /** 착지 처리 — 퍼펙트 콤보(중독성 장치의 핵심) 포함 */
@@ -348,8 +372,9 @@ export class GameEngine {
     }
   }
 
-  /** 백업 셀 소모 — 가시/폭발 1회 무효화 후 위로 탈출 + 짧은 무적 */
+  /** 백업 셀 소모 — 가시/폭발 1회 무효화 후 위험 반대 방향으로 탈출 + 짧은 무적 */
   private consumeShield(reason: Exclude<DeathReason, 'fall'>, deathIndex?: number) {
+    if (!this.stage) return;
     this.shield = false;
     this.invulnUntil = this.timeMs + SHIELD_INVULN_MS;
     this.combo = 0;
@@ -359,8 +384,17 @@ export class GameEngine {
     this.particles.burst(this.ball.position.x, this.ball.position.y, {
       count: 10, speed: 200, size: 4, life: 0.5, gravity: 600, upBias: 0.5, blink: true,
     });
+    if (reason === 'ceiling-spike') {
+      // 천장 가시: 아래로 탈출 + 가시 띠 아래로 위치 보정
+      if (deathIndex !== undefined) {
+        const el = this.stage.elements[deathIndex];
+        this.ball.position.y = el.y + CEILING_SPIKE_HEIGHT + this.ball.radius + 2;
+      }
+      this.ball.reboundDown();
+      return;
+    }
     if (reason === 'explosive' && deathIndex !== undefined) {
-      // 폭발 발판은 보호막이 흡수해도 파괴된다
+      // 폭발 발판은 보호막이 흡수해도 파괴된다 (직후 착지 지점은 플레이어 책임 — 의도된 설계)
       this.brokenFloors.add(deathIndex);
       sound.play('explosive');
     }

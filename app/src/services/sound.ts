@@ -34,12 +34,20 @@ export interface PlayOptions {
   pitch?: number;
 }
 
+/** suspend 사유 — 광고와 백그라운드가 동시에 겹칠 수 있어 단일 boolean이 아닌 Set으로 관리.
+ *  (리뷰 확정 버그: 광고 중 백그라운드 갔다 오면 광고 위에서 소리가 풀렸음) */
+export type SuspendReason = 'ad' | 'background';
+
 class SoundEngine {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private bgmGain: GainNode | null = null;
   private enabled = true;
-  private muted = false;
+  private suspendReasons = new Set<SuspendReason>();
+
+  private get muted(): boolean {
+    return this.suspendReasons.size > 0;
+  }
 
   private ensure(): AudioContext | null {
     if (this.muted || !this.enabled) return null;
@@ -76,17 +84,23 @@ class SoundEngine {
     }
   }
 
-  suspend() {
-    this.muted = true;
+  suspend(reason: SuspendReason) {
+    this.suspendReasons.add(reason);
     if (this.ctx) void this.ctx.suspend();
   }
 
   /**
-   * 백그라운드 복귀. 여기서 ctx.resume()을 직접 호출하지 않는다 —
-   * 게임은 일시정지 상태이므로 사용자가 버튼을 누를 때(ensure 경유) 재개된다.
+   * suspend 해제. 모든 사유가 해제됐을 때만 소리가 돌아온다.
+   * - 'ad' 해제: 사용자 버튼(제스처)에서 발생하므로 즉시 resume 허용
+   * - 'background' 해제: 자동 재개 금지(모바일 정책) — 다음 사용자 입력의
+   *   play()/unlock()이 ensure()를 거치며 자연스럽게 재개된다
    */
-  resumeAfterBackground() {
-    this.muted = false;
+  resumeFrom(reason: SuspendReason) {
+    this.suspendReasons.delete(reason);
+    if (this.suspendReasons.size > 0) return;
+    if (reason === 'ad' && this.ctx && this.enabled) {
+      void this.ctx.resume();
+    }
   }
 
   /** 사용자 첫 인터랙션 시 호출 — 모바일 브라우저 오디오 활성화.
@@ -111,10 +125,13 @@ class SoundEngine {
         this.tone(ctx, g, 'sine', 360 * pitch, 320 * pitch, 0.06, 0.3);
         this.tone(ctx, g, 'square', 720 * pitch, 720 * pitch, 0.08, 0.16);
         break;
-      case 'comboBreak':
-        this.tone(ctx, g, 'triangle', 392, 392, 0.07, 0.18);
-        setTimeout(() => this.tone(ctx, g, 'triangle', 370, 370, 0.09, 0.15), 70);
+      case 'comboBreak': {
+        // setTimeout 대신 AudioContext 시간으로 예약 — suspend와 겹쳐도 음이 뭉치지 않음
+        const now = ctx.currentTime;
+        this.tone(ctx, g, 'triangle', 392, 392, 0.07, 0.18, now);
+        this.tone(ctx, g, 'triangle', 370, 370, 0.09, 0.15, now + 0.07);
         break;
+      }
       case 'wall':
         this.tone(ctx, g, 'square', 220 * vary(), 140, 0.08, 0.22);
         break;
@@ -131,10 +148,12 @@ class SoundEngine {
       case 'whoosh':
         this.noiseSweep(ctx, g, 0.09, 0.2, 2000, 6000);
         break;
-      case 'collect':
-        this.tone(ctx, g, 'square', 988, 988, 0.06, 0.2);
-        setTimeout(() => this.tone(ctx, g, 'square', 1319, 1319, 0.09, 0.22), 60);
+      case 'collect': {
+        const now = ctx.currentTime;
+        this.tone(ctx, g, 'square', 988, 988, 0.06, 0.2, now);
+        this.tone(ctx, g, 'square', 1319, 1319, 0.09, 0.22, now + 0.06);
         break;
+      }
       case 'shield':
         this.tone(ctx, g, 'sine', 660, 990, 0.14, 0.28);
         break;
@@ -149,35 +168,31 @@ class SoundEngine {
         break;
       case 'unlock': {
         // 4음 상행 + 마지막 화음 — 해금 팡파레
+        const now = ctx.currentTime;
         const notes = [523, 659, 784, 1047];
         notes.forEach((f, i) => {
-          setTimeout(() => this.tone(ctx, g, 'square', f, f, 0.1, 0.22), i * 90);
+          this.tone(ctx, g, 'square', f, f, 0.1, 0.22, now + i * 0.09);
         });
-        setTimeout(() => {
-          this.tone(ctx, g, 'square', 1047, 1047, 0.4, 0.18);
-          this.tone(ctx, g, 'square', 1319, 1319, 0.4, 0.12);
-        }, notes.length * 90);
+        this.tone(ctx, g, 'square', 1047, 1047, 0.4, 0.18, now + notes.length * 0.09);
+        this.tone(ctx, g, 'square', 1319, 1319, 0.4, 0.12, now + notes.length * 0.09);
         break;
       }
       case 'boot': {
         // 전원 복구: 저음 스윕 상승 + 3음 메이저 화음 (옛 게임기 부팅음)
-        this.tone(ctx, g, 'triangle', 80, 440, 0.5, 0.3);
-        setTimeout(() => {
-          this.tone(ctx, g, 'square', 523, 523, 0.55, 0.18);
-          this.tone(ctx, g, 'square', 659, 659, 0.55, 0.14);
-          this.tone(ctx, g, 'square', 784, 784, 0.55, 0.14);
-        }, 480);
+        const now = ctx.currentTime;
+        this.tone(ctx, g, 'triangle', 80, 440, 0.5, 0.3, now);
+        this.tone(ctx, g, 'square', 523, 523, 0.55, 0.18, now + 0.48);
+        this.tone(ctx, g, 'square', 659, 659, 0.55, 0.14, now + 0.48);
+        this.tone(ctx, g, 'square', 784, 784, 0.55, 0.14, now + 0.48);
         break;
       }
       case 'clear': {
-        // '소리 문 열림' 개편 — 5음 상승 아르페지오 + 마지막 음 잔향
+        // 5음 상승 아르페지오 + 마지막 음 잔향
+        const now = ctx.currentTime;
         const seq = [523, 659, 784, 1047, 1319];
         seq.forEach((f, i) => {
           const last = i === seq.length - 1;
-          setTimeout(
-            () => this.tone(ctx, g, 'triangle', f, f, last ? 0.5 : 0.09, last ? 0.4 : 0.3),
-            i * 80,
-          );
+          this.tone(ctx, g, 'triangle', f, f, last ? 0.5 : 0.09, last ? 0.4 : 0.3, now + i * 0.08);
         });
         break;
       }
@@ -201,12 +216,13 @@ class SoundEngine {
     freqEnd: number,
     duration: number,
     peak: number,
+    at?: number,
   ) {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = type;
-    const now = ctx.currentTime;
-    osc.frequency.setValueAtTime(freqStart, now);
+    const now = at ?? ctx.currentTime;
+    osc.frequency.setValueAtTime(Math.max(40, freqStart), now);
     osc.frequency.exponentialRampToValueAtTime(Math.max(40, freqEnd), now + duration);
     gain.gain.setValueAtTime(0.0001, now);
     gain.gain.exponentialRampToValueAtTime(peak, now + 0.005);

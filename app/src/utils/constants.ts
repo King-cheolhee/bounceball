@@ -11,11 +11,16 @@ export const SPIKE_WIDTH = 40;
 export const CEILING_SPIKE_HEIGHT = 24;
 /**
  * 천장 가시 기본 y (가시는 y에서 아래로 CEILING_SPIKE_HEIGHT만큼 뻗음).
- * 점프 높이 300px 고정 → 바닥(600) 기준 점프 정점에서 공 상단 y≈268.
- * 가시 끝(y+24)=272로 두면 정점 부근에서만 닿음 — 회피법은 "수평 타이밍 통과".
- * (기존 y=60은 물리적으로 도달 불가능한 장식이었음 — 기획 모순 해소)
+ * 점프 높이 300px → 바닥(600) 기준 정점에서 공 상단 y≈268 (해석값).
+ * 고정 타임스텝(1/120s) 이산 적분의 정점 미달분은 스테이지가 깊을수록 커져
+ * 실측 공 상단 최고점이 276.4(S14)~280.5(S20)이다. 최악 케이스를 덮도록
+ * 가시 끝(y+24)=284로 둔다 → 모든 배치 스테이지에서 정점 부근만 살상.
+ * 회피법은 "수평 타이밍 통과". (y=60·248·254는 전부 도달 불가 장식이었음 —
+ * 1/120 스텝 실측 시뮬레이션으로 260 확정)
  */
-export const CEILING_SPIKE_Y = 248;
+export const CEILING_SPIKE_Y = 260;
+/** 물리 고정 타임스텝(초) — 점프 높이가 기기 프레임레이트와 무관하게 일정해진다 */
+export const PHYSICS_STEP = 1 / 120;
 
 export const TARGET_JUMP_HEIGHT = 300;
 export const BASE_MAX_HORIZONTAL_SPEED = 320;
@@ -42,8 +47,8 @@ export const COMBO_OVERCLOCK = 5;
 /** 가시 근소실패(아슬아슬 회피) 판정 거리(px)와 히트스톱 시간 */
 export const NEAR_MISS_DIST = 24;
 export const NEAR_MISS_HITSTOP_MS = 50;
-/** 수집 아이템 */
-export const PART_PICKUP_RADIUS = 30;
-export const SHIELD_PICKUP_RADIUS = 32;
+/** 수집 아이템 — 하이퍼캐주얼 표준대로 관대한 판정 (실플레이 검증 후 30→42 확대) */
+export const PART_PICKUP_RADIUS = 42;
+export const SHIELD_PICKUP_RADIUS = 44;
 /** 백업 셀(보호막) 피격 후 무적 시간 */
 export const SHIELD_INVULN_MS = 900;

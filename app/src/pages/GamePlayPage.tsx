@@ -114,15 +114,17 @@ export function GamePlayPage({ onExit }: Props) {
     engineRef.current?.setSkin(selectedSkin);
   }, [selectedSkin]);
 
-  // BGM — 해금된 사운드 칩 채널 수만큼 적층, 템포는 스테이지 따라 상승
+  // BGM — 해금된 사운드 칩 채널 수만큼 적층, 템포는 스테이지 따라 상승.
+  // 일시정지/광고/게임오버 중에는 정지 — 스케줄러가 suspend된 컨텍스트를
+  // 자동 resume하는 정책 위반 경로를 차단한다 (리뷰 확정 버그 수정)
   useEffect(() => {
-    const layers = getBgmLayers(maxClearedStage);
-    if (music.isPlaying()) {
-      music.setProgress(layers, currentStage);
-    } else {
-      music.start(layers, currentStage);
+    const blocked = isPaused || isGameOver || isStageClearing || !!showAd;
+    if (blocked) {
+      music.stop();
+      return;
     }
-  }, [currentStage, maxClearedStage]);
+    music.start(getBgmLayers(maxClearedStage), currentStage);
+  }, [isPaused, isGameOver, isStageClearing, showAd, currentStage, maxClearedStage]);
 
   // 일시정지/재개 동기화
   useEffect(() => {
@@ -158,11 +160,12 @@ export function GamePlayPage({ onExit }: Props) {
   }, [isStageClearing, allCleared, lastUnlockMsg]);
 
   // 광고 표시 중 게임 사운드 일시정지 (검수 요건)
+  // 'ad' 사유로 별도 관리 — 광고 중 백그라운드 전환과 겹쳐도 안전
   useEffect(() => {
     if (!showAd) return;
-    sound.suspend();
+    sound.suspend('ad');
     return () => {
-      sound.resumeAfterBackground();
+      sound.resumeFrom('ad');
     };
   }, [showAd]);
 
@@ -302,6 +305,9 @@ export function GamePlayPage({ onExit }: Props) {
             onContinue={() => {
               if (allCleared) {
                 setAllCleared(false);
+                // 메모리 상태도 Stage 1로 리셋 — 이게 없으면 같은 세션의
+                // '다시 도전하기'가 Stage 20부터 시작됐다 (리뷰 확정 버그)
+                void advanceAfterClear();
                 onExit();
               }
             }}
@@ -314,10 +320,13 @@ export function GamePlayPage({ onExit }: Props) {
           <MockAdOverlay
             type={showAd}
             onClose={(rewarded) => {
+              const stageBefore = useGameStore.getState().currentStage;
               consumeAd(rewarded);
-              const next = useGameStore.getState().currentStage;
-              if (!useGameStore.getState().isGameOver && engineRef.current) {
-                engineRef.current.loadStage(next);
+              const st = useGameStore.getState();
+              // 스테이지가 바뀌었으면 currentStage effect가 로드하므로 여기선
+              // 스테이지 불변(부활 등)일 때만 직접 로드 — 이중 로드 방지
+              if (!st.isGameOver && engineRef.current && st.currentStage === stageBefore) {
+                engineRef.current.loadStage(st.currentStage);
               }
             }}
           />

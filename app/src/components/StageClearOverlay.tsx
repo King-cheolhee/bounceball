@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Overlay } from './Overlay';
 import { sound } from '../services/sound';
 import { STORY } from '../utils/story';
@@ -14,10 +14,14 @@ interface Props {
 }
 
 export function StageClearOverlay({ stage, onContinue, totalCleared, unlockMsg, partsCollected }: Props) {
+  // 부모 리렌더로 onContinue 참조가 바뀌어도 타이머가 리셋되지 않도록 ref 경유
+  const onContinueRef = useRef(onContinue);
+  onContinueRef.current = onContinue;
+
   useEffect(() => {
-    const id = setTimeout(onContinue, totalCleared ? 3000 : unlockMsg ? 2000 : 1100);
+    const id = setTimeout(() => onContinueRef.current(), totalCleared ? 3000 : unlockMsg ? 2000 : 1100);
     return () => clearTimeout(id);
-  }, [onContinue, totalCleared, unlockMsg]);
+  }, [totalCleared, unlockMsg]);
 
   // 엔딩: 전원 복구 부팅음 / 챕터 해금: 팡파레
   useEffect(() => {

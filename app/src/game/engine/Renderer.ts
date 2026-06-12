@@ -346,10 +346,11 @@ export class Renderer {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.font = `900 ${overclocked ? 22 : 16}px ${FONT}`;
+      // y=52 — 상단 중앙의 일시정지 버튼(React HUD)과 겹치지 않게
       ctx.fillText(
         overclocked ? `OVERCLOCK ×${state.combo}` : `COMBO ×${state.combo}`,
         vw / 2,
-        14,
+        52,
       );
       if (overclocked) {
         // 화면 가장자리 펄스 — 전류가 흐른다 (부품 2배 획득 중)

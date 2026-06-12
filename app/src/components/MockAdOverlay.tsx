@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from './Button';
 import { Overlay } from './Overlay';
 import { AdType } from '../services/ads';
@@ -15,6 +15,9 @@ export function MockAdOverlay({ type, onClose }: Props) {
   const totalSeconds = type === 'interstitial' ? INTERSTITIAL_SECONDS : REWARDED_SECONDS;
   const [remaining, setRemaining] = useState(totalSeconds);
   const [skippable, setSkippable] = useState(false);
+  // 부모 리렌더로 onClose 참조가 바뀌어도 카운트다운이 리셋되지 않도록 ref 경유
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     const start = Date.now();
@@ -25,11 +28,11 @@ export function MockAdOverlay({ type, onClose }: Props) {
       if (type === 'interstitial' && elapsed >= 2) setSkippable(true);
       if (next === 0) {
         clearInterval(id);
-        onClose(type === 'rewarded');
+        onCloseRef.current(type === 'rewarded');
       }
     }, 100);
     return () => clearInterval(id);
-  }, [totalSeconds, onClose, type]);
+  }, [totalSeconds, type]);
 
   return (
     <Overlay dim={0.92}>
@@ -58,7 +61,11 @@ export function MockAdOverlay({ type, onClose }: Props) {
       </div>
       <div style={{ marginTop: 24, display: 'flex', gap: 12 }}>
         {type === 'interstitial' && (
-          <Button onClick={() => onClose(false)} variant={skippable ? 'secondary' : 'ghost'}>
+          <Button
+            onClick={() => onClose(false)}
+            variant={skippable ? 'secondary' : 'ghost'}
+            disabled={!skippable}
+          >
             {skippable ? '건너뛰기' : '...'}
           </Button>
         )}

@@ -58,8 +58,9 @@ export function App() {
     }
   }, [ready, hydrated, settingsHydrated, unlocksHydrated, splashDone, screen, goToScreen]);
 
-  // 큰 PC 화면이 아니고, 모바일이며 세로일 때만 회전 프롬프트
-  const isMobile = viewport.width < 900 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  // 모바일 기기(UA 기준)에서 세로일 때만 회전 프롬프트
+  // (기존 OR 조건은 폭 900px 미만의 좁은 데스크톱 창까지 차단했음 — 수정)
+  const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
   const needsRotation = isMobile && !viewport.isLandscape;
 
   const loading = !ready || !hydrated || !settingsHydrated || !unlocksHydrated;

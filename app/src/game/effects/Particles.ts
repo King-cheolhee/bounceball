@@ -121,5 +121,6 @@ export class ParticleSystem {
   clear() {
     this.particles = [];
     this.rings = [];
+    this.seed = 1; // 결정성 보장 — 스테이지 로드마다 동일한 패턴
   }
 }

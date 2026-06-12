@@ -225,9 +225,11 @@ const STAGES: StageData[] = [
     ceilingSpike(1700, 80),
     ceilingSpike(1850, 80),
     spike(1050),
-    spike(2050),
+    // 2050 → 2250 이동: 기존 위치는 fragile 바닥(1930~2180) 위라
+    // 바닥 붕괴 후 가시만 공중에 떠서 계속 살상 판정되는 모순이 있었음
+    spike(2250),
     part(200), part(700, 450), part(1030, 330), part(1300, 430),
-    part(1750, 450), part(2050, 330), part(2500), part(2900),
+    part(1750, 450), part(2270, 330), part(2500), part(2900),
     shieldItem(450),
   ], { isCheckpointEnd: true }),
 
@@ -368,8 +370,10 @@ const STAGES: StageData[] = [
     floor(770, 80, 'explosive'),
     floor(850, 80, 'fragile'),
     floor(930, 80, 'fragile'),
-    floor(1010, 80, 'explosive'),
-    // 큰 구멍 (1090~1340)
+    // 도약대 — 폭발 발판이면 큰 구멍(요구 298px > 물리 한계 250px)을 못 건너
+    // 클리어 불가가 된다 (적대적 리뷰 정량 검증으로 확정된 치명 버그 → 일반 발판화)
+    floor(1010, 110),
+    // 큰 구멍 (1120~1340)
     floor(1340, 80, 'fragile'),
     floor(1420, 80, 'explosive'),
     floor(1500, 80, 'fragile'),

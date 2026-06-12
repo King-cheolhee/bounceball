@@ -33,9 +33,11 @@ export class Camera {
     this.x = this.clampX(targetX - this.viewportWidth * CAMERA_FOLLOW_X_OFFSET);
   }
 
-  follow(targetX: number) {
+  /** dt 보정 지수 추적 — 프레임레이트가 달라도 따라오는 속도가 동일 */
+  follow(targetX: number, dt = 1 / 60) {
     const desired = this.clampX(targetX - this.viewportWidth * CAMERA_FOLLOW_X_OFFSET);
-    this.x += (desired - this.x) * CAMERA_FOLLOW_LERP;
+    const factor = 1 - Math.pow(1 - CAMERA_FOLLOW_LERP, dt * 60);
+    this.x += (desired - this.x) * factor;
   }
 
   /** 짧은 화면 흔들림. amp=진폭(px), durMs=지속시간. 감쇠 이징. */

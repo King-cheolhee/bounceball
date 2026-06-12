@@ -10,10 +10,10 @@ export function useVisibilityPause(onBackground: () => void, onForeground: () =>
   useEffect(() => {
     const onVis = () => {
       if (document.hidden) {
-        sound.suspend();
+        sound.suspend('background');
         onBackground();
       } else {
-        sound.resumeAfterBackground();
+        sound.resumeFrom('background');
         onForeground();
       }
     };

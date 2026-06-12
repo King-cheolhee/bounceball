@@ -64,11 +64,19 @@ export function detectCollisions(
   const prevBottom = prevY + r;
   const curTop = curY - r;
   const prevTop = prevY - r;
+  // 속도 스냅샷 — 루프 중 bounceOnFloor가 velocity를 바꿔 뒤쪽 발판 판정을
+  // 오염시키지 않도록 (리뷰 확정 버그: 배열 순서에 따라 폭발/생존이 갈렸음)
+  const vy = ball.velocity.y;
 
   if (curTop > stageHeight + 200) {
     result.death = 'fall';
     return result;
   }
+
+  // 발판은 1패스에서 후보만 모으고, 루프 후 "공 중심의 접점" 기준으로 하나를 고른다.
+  // 원이 평면에 닿는 접점은 중심 바로 아래 1점 — AABB 겹침만으로 폭발을 판정하면
+  // 안전 발판 중앙에 착지해도 16px 옆 폭발 발판에 죽는 비대칭이 생긴다.
+  let bestFloor: { el: StageElement; index: number; overlap: number; centerOn: boolean } | null = null;
 
   for (let i = 0; i < elements.length; i++) {
     const el = elements[i];
@@ -80,21 +88,19 @@ export function detectCollisions(
       const floorTop = el.y;
       const overlapX = curX + r > el.x && curX - r < el.x + fw;
       // 스윕: 이전 프레임에는 윗면 위에 있었고, 이번 프레임에 윗면을 넘어 내려갔다
-      const sweptDown = ball.velocity.y >= 0 && prevBottom <= floorTop + 1 && curBottom >= floorTop;
+      const sweptDown = vy >= 0 && prevBottom <= floorTop + 1 && curBottom >= floorTop;
       // 보조: 윗면 바로 아래 얕은 구간에서의 겹침 (저속·접지 유지용)
-      const shallow =
-        ball.velocity.y >= 0 && curBottom >= floorTop && curBottom <= floorTop + FLOOR_THICKNESS + 8;
+      const shallow = vy >= 0 && curBottom >= floorTop && curBottom <= floorTop + FLOOR_THICKNESS + 8;
       if (overlapX && (sweptDown || shallow)) {
-        if (el.variant === 'explosive') {
-          result.death = 'explosive';
-          result.deathIndex = i;
-          return result;
+        const centerOn = curX >= el.x && curX <= el.x + fw;
+        const overlap = Math.min(curX + r, el.x + fw) - Math.max(curX - r, el.x);
+        if (
+          !bestFloor ||
+          (centerOn && !bestFloor.centerOn) ||
+          (centerOn === bestFloor.centerOn && overlap > bestFloor.overlap)
+        ) {
+          bestFloor = { el, index: i, overlap, centerOn };
         }
-        const zone = perfectZoneWidth(fw);
-        const centerX = el.x + fw / 2;
-        const perfect = Math.abs(curX - centerX) <= zone / 2;
-        ball.bounceOnFloor(floorTop);
-        result.landedFloor = { el, index: i, perfect };
       }
     } else if (el.type === 'spike') {
       const sw = el.width ?? 0;
@@ -155,6 +161,22 @@ export function detectCollisions(
         const fromLeft = prevX < wx + ww / 2;
         result.wallHit = { side: fromLeft ? 'right' : 'left', x: fromLeft ? wx : wx + ww };
       }
+    }
+  }
+
+  // 2패스: 선택된 단일 발판으로 폭발/바운스 확정 (가시 사망이 이미 결정됐으면 생략)
+  if (!result.death && bestFloor) {
+    const { el, index } = bestFloor;
+    if (el.variant === 'explosive') {
+      result.death = 'explosive';
+      result.deathIndex = index;
+    } else {
+      const fw = el.width ?? 0;
+      const zone = perfectZoneWidth(fw);
+      const centerX = el.x + fw / 2;
+      const perfect = Math.abs(curX - centerX) <= zone / 2;
+      ball.bounceOnFloor(el.y);
+      result.landedFloor = { el, index, perfect };
     }
   }
 

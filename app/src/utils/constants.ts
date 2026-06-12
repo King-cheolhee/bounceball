@@ -3,6 +3,8 @@ export const CHECKPOINTS = [1, 6, 11, 16];
 export const INITIAL_LIVES = 3;
 
 export const VIEWPORT_HEIGHT = 720;
+/** 화면에 보이는 월드 높이(고정). 스테이지 height가 이보다 크면 세로 스크롤 */
+export const DESIGN_HEIGHT = 720;
 export const BALL_RADIUS = 16;
 
 export const FLOOR_THICKNESS = 6;
@@ -11,22 +13,30 @@ export const SPIKE_WIDTH = 40;
 export const CEILING_SPIKE_HEIGHT = 24;
 /**
  * 천장 가시 기본 y (가시는 y에서 아래로 CEILING_SPIKE_HEIGHT만큼 뻗음).
- * 점프 높이 300px → 바닥(600) 기준 정점에서 공 상단 y≈268 (해석값).
- * 고정 타임스텝(1/120s) 이산 적분의 정점 미달분은 스테이지가 깊을수록 커져
- * 실측 공 상단 최고점이 276.4(S14)~280.5(S20)이다. 최악 케이스를 덮도록
- * 가시 끝(y+24)=284로 둔다 → 모든 배치 스테이지에서 정점 부근만 살상.
- * 회피법은 "수평 타이밍 통과". (y=60·248·254는 전부 도달 불가 장식이었음 —
- * 1/120 스텝 실측 시뮬레이션으로 260 확정)
+ * 점프 높이 240px → 바닥(600) 기준 정점에서 공 상단 y≈328 (해석값) +
+ * 1/120 스텝 이산 적분 미달분(스테이지별 4~10px)을 실측해 최악 케이스를
+ * 덮도록 둔다. 회피법은 "수평 타이밍 통과". 시뮬레이션 검증 후 확정 값.
  */
-export const CEILING_SPIKE_Y = 260;
+export const CEILING_SPIKE_Y = 318;
 /** 물리 고정 타임스텝(초) — 점프 높이가 기기 프레임레이트와 무관하게 일정해진다 */
 export const PHYSICS_STEP = 1 / 120;
 
-export const TARGET_JUMP_HEIGHT = 300;
-export const BASE_MAX_HORIZONTAL_SPEED = 320;
-export const HORIZONTAL_ACCELERATION = 1400;
+/** 점프 높이 — 300은 너무 높아 쉬웠음(사용자 플레이 피드백) → 240으로 하향.
+ *  체공시간은 바운스 주기로 고정되므로 수평 도달 거리는 변하지 않는다. */
+export const TARGET_JUMP_HEIGHT = 240;
+/** 시작 템포 +10% 요청 반영: 320 → 352 */
+export const BASE_MAX_HORIZONTAL_SPEED = 352;
+export const HORIZONTAL_ACCELERATION = 1500;
 export const HORIZONTAL_FRICTION = 0.88;
 export const WALL_BOUNCE_DAMPING = 0.6;
+
+// ===== 벽 반동 점프 (원조 공튀기기의 핵심 조작감) =====
+/** 벽 충돌 후 이 시간 안에 반대 방향을 누르면 벽을 밟고 도약 */
+export const WALL_KICK_WINDOW_MS = 150;
+/** 벽 반동 수평 속도 = 최고속도 × 배수 (일반 이동보다 멀리 날아간다) */
+export const WALL_KICK_SPEED_MULT = 1.35;
+/** 초과 속도(벽 반동)가 최고속도로 잦아드는 감쇠율 (프레임 독립) */
+export const OVERSPEED_DECAY = 0.985;
 
 export const CAMERA_FOLLOW_X_OFFSET = 0.35;
 export const CAMERA_FOLLOW_LERP = 0.12;

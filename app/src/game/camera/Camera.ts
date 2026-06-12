@@ -29,15 +29,19 @@ export class Camera {
     this.worldHeight = h;
   }
 
-  snapTo(targetX: number) {
+  snapTo(targetX: number, targetY = 0) {
     this.x = this.clampX(targetX - this.viewportWidth * CAMERA_FOLLOW_X_OFFSET);
+    this.y = this.clampY(targetY - this.viewportHeight * 0.5);
   }
 
-  /** dt 보정 지수 추적 — 프레임레이트가 달라도 따라오는 속도가 동일 */
-  follow(targetX: number, dt = 1 / 60) {
-    const desired = this.clampX(targetX - this.viewportWidth * CAMERA_FOLLOW_X_OFFSET);
+  /** dt 보정 지수 추적 — 프레임레이트가 달라도 따라오는 속도가 동일.
+   *  세로 스크롤 맵(stage.height > 화면)을 위해 y도 함께 따라간다. */
+  follow(targetX: number, targetY: number, dt = 1 / 60) {
     const factor = 1 - Math.pow(1 - CAMERA_FOLLOW_LERP, dt * 60);
-    this.x += (desired - this.x) * factor;
+    const desiredX = this.clampX(targetX - this.viewportWidth * CAMERA_FOLLOW_X_OFFSET);
+    this.x += (desiredX - this.x) * factor;
+    const desiredY = this.clampY(targetY - this.viewportHeight * 0.5);
+    this.y += (desiredY - this.y) * factor;
   }
 
   /** 짧은 화면 흔들림. amp=진폭(px), durMs=지속시간. 감쇠 이징. */
@@ -70,5 +74,10 @@ export class Camera {
   private clampX(x: number) {
     const max = Math.max(0, this.worldWidth - this.viewportWidth);
     return Math.max(0, Math.min(max, x));
+  }
+
+  private clampY(y: number) {
+    const max = Math.max(0, this.worldHeight - this.viewportHeight);
+    return Math.max(0, Math.min(max, y));
   }
 }

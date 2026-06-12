@@ -5,6 +5,7 @@ import {
   SPIKE_WIDTH,
   CEILING_SPIKE_HEIGHT,
   COMBO_OVERCLOCK,
+  DESIGN_HEIGHT,
 } from '../../utils/constants';
 import type { StageData, StageElement } from '../../utils/types';
 import type { Ball } from '../entities/Ball';
@@ -61,9 +62,10 @@ export class Renderer {
     ctx.fillStyle = BG;
     ctx.fillRect(0, 0, viewportWidth, viewportHeight);
 
-    // 월드 좌표계로 이동 — scale은 카메라 뷰포트(월드 단위) 계산과 반드시 일치해야 함
+    // 월드 좌표계로 이동 — scale은 카메라 뷰포트(월드 단위) 계산과 반드시 일치해야 함.
+    // DESIGN_HEIGHT 기준이므로 스테이지가 더 높으면 세로 스크롤이 된다.
     ctx.save();
-    const scale = viewportHeight / state.stage.height;
+    const scale = viewportHeight / DESIGN_HEIGHT;
     ctx.scale(scale, scale);
     ctx.translate(
       -state.camera.x + state.camera.shakeOffsetX,
@@ -71,10 +73,10 @@ export class Renderer {
     );
 
     // 배경 점선 가이드 (먼 LCD 느낌)
-    this.drawBackgroundDots(state.stage, state.camera, viewportWidth / scale);
+    this.drawBackgroundDots(state.stage, state.camera, viewportWidth / scale, DESIGN_HEIGHT);
 
-    // 골 표시 (B안: 코어 셀)
-    this.drawGoal(state.stage, state.timeMs);
+    // 탈출구 표시 (상하좌우 어느 방향이든)
+    this.drawExit(state.stage, state.timeMs);
 
     // 엘리먼트 렌더링
     for (let i = 0; i < state.stage.elements.length; i++) {
@@ -105,47 +107,54 @@ export class Renderer {
     }
   }
 
-  private drawBackgroundDots(stage: StageData, camera: { x: number }, visibleWorldW: number) {
+  private drawBackgroundDots(
+    stage: StageData,
+    camera: { x: number; y: number },
+    visibleWorldW: number,
+    visibleWorldH: number,
+  ) {
     const ctx = this.ctx;
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     const step = 40;
     const startX = Math.max(0, Math.floor(camera.x / step) * step);
     const endX = Math.min(stage.width, camera.x + visibleWorldW + step);
+    const startY = Math.max(40, Math.floor(camera.y / step) * step);
+    const endY = Math.min(stage.height, camera.y + visibleWorldH + step);
     for (let x = startX; x < endX; x += step) {
-      for (let y = 40; y < stage.height; y += step) {
+      for (let y = startY; y < endY; y += step) {
         ctx.fillRect(x, y, 2, 2);
       }
     }
   }
 
-  private drawGoal(stage: StageData, t: number) {
+  /** 탈출구 — 흐르는 점선 사각형 + 점멸 코어. 상하좌우 어느 방향이든 동일 표현 */
+  private drawExit(stage: StageData, t: number) {
     const ctx = this.ctx;
-    const x = stage.goal.x;
+    const e = stage.exit;
     ctx.strokeStyle = FG;
     ctx.lineWidth = 3;
     ctx.setLineDash([8, 8]);
     ctx.lineDashOffset = -t * 0.02; // 살아있는 전원선 느낌으로 흐르는 점선
-    ctx.beginPath();
-    ctx.moveTo(x, 60);
-    ctx.lineTo(x, stage.height - 20);
-    ctx.stroke();
+    ctx.strokeRect(e.x, e.y, e.width, e.height);
     ctx.setLineDash([]);
     ctx.lineDashOffset = 0;
 
     // 코어 셀 심볼: 점멸하는 이중 사각형 (전원 코어)
+    const cx = e.x + e.width / 2;
+    const cy = e.y + e.height / 2;
     const blink = Math.floor(t / 500) % 2 === 0;
     ctx.strokeStyle = FG;
     ctx.lineWidth = 2;
-    ctx.strokeRect(x - 11, 88, 22, 22);
+    ctx.strokeRect(cx - 11, cy - 11, 22, 22);
     if (blink) {
       ctx.fillStyle = FG;
-      ctx.fillRect(x - 5, 94, 10, 10);
+      ctx.fillRect(cx - 5, cy - 5, 10, 10);
     }
     ctx.fillStyle = FG;
-    ctx.font = `700 18px ${FONT}`;
-    ctx.textAlign = 'left';
+    ctx.font = `700 14px ${FONT}`;
+    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('CORE', x + 18, 99);
+    ctx.fillText('EXIT', cx, e.y - 14);
   }
 
   private drawElement(el: StageElement, index: number, broken: Set<number>, t: number) {
@@ -376,5 +385,9 @@ export class Renderer {
     ctx.fillText(stage.name, vw / 2, vh / 2);
     ctx.font = `700 13px ${FONT}`;
     ctx.fillText(`STAGE ${String(stage.id).padStart(2, '0')}`, vw / 2, vh / 2 + 34);
+    if (stage.hint) {
+      ctx.font = `500 13px ${FONT}`;
+      ctx.fillText(`— ${stage.hint} —`, vw / 2, vh / 2 + 58);
+    }
   }
 }

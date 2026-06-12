@@ -43,6 +43,10 @@ export function StageClearOverlay({ stage, onContinue, totalCleared, unlockMsg, 
             </div>
             <div style={{ fontSize: 14, marginTop: 14, opacity: 0.7 }}>{STORY.allClearBody}</div>
             <BootSegments />
+            {/* 원작 BOUND의 "osimai(끝)" 오마주 — 짧고 건조하게 */}
+            <div style={{ fontSize: 13, marginTop: 20, opacity: 0.5, letterSpacing: '0.4em' }}>
+              {STORY.allClearTail}
+            </div>
           </>
         ) : (
           <>

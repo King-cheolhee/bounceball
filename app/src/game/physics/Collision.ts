@@ -183,6 +183,11 @@ export function detectCollisions(
   return result;
 }
 
-export function reachedGoal(ball: Ball, goalX: number): boolean {
-  return ball.position.x >= goalX;
+/** 탈출구 도달 — 공 중심이 탈출 영역 안에 들어오면 클리어 (상하좌우 모든 방향 지원) */
+export function reachedGoal(
+  ball: Ball,
+  exit: { x: number; y: number; width: number; height: number },
+): boolean {
+  const { x, y } = ball.position;
+  return x >= exit.x && x <= exit.x + exit.width && y >= exit.y && y <= exit.y + exit.height;
 }

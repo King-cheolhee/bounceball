@@ -14,6 +14,7 @@ export type SfxName =
   | 'perfect'       // 퍼펙트 바운스 "탁+띵" (한 옥타브 위 배음)
   | 'comboBreak'    // 콤보 단절 (반음 하강 2음, 짧게)
   | 'wall'          // 벽 충돌 "팡"
+  | 'wallkick'      // 벽 반동 점프 "팡-슉" (원조 공튀기기의 그 소리)
   | 'fragile'       // 부서지는 바닥 "쩍"
   | 'explosive'     // 폭발 발판 "퍽"
   | 'spike'         // 가시 "찌릭"
@@ -134,6 +135,11 @@ class SoundEngine {
       }
       case 'wall':
         this.tone(ctx, g, 'square', 220 * vary(), 140, 0.08, 0.22);
+        break;
+      case 'wallkick':
+        // 벽을 밟고 도약 — 상승 스윕 + 짧은 클릭, 성공 보상이 확실히 들리게
+        this.tone(ctx, g, 'square', 180, 560, 0.14, 0.32);
+        this.noiseSweep(ctx, g, 0.07, 0.14, 1500, 4500);
         break;
       case 'fragile':
         this.noise(ctx, g, 0.08, 0.22, 'highpass', 1800);

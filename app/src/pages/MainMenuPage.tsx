@@ -51,7 +51,9 @@ export function MainMenuPage({ onStart, onSettings }: Props) {
             {STORY.titleEn} · {STORY.subtitle}
           </div>
           <div style={{ fontSize: 30, fontWeight: 900, marginTop: 6, letterSpacing: '0.06em' }}>탱탱볼해금</div>
-          <div style={{ fontSize: 11, opacity: 0.45, marginTop: 4 }}>{STORY.tagline}</div>
+          <div style={{ fontSize: 11, opacity: 0.45, marginTop: 4 }}>
+            『{STORY.tagline}』 — {STORY.taglineSub}
+          </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
           <Button onClick={onSettings} variant="ghost" size="sm" ariaLabel="설정">

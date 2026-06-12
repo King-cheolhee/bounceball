@@ -15,6 +15,8 @@ import {
   NEAR_MISS_HITSTOP_MS,
   SHIELD_INVULN_MS,
   PHYSICS_STEP,
+  DESIGN_HEIGHT,
+  WALL_KICK_WINDOW_MS,
 } from '../../utils/constants';
 import { sound } from '../../services/sound';
 import { haptic } from '../../services/haptic';
@@ -49,6 +51,8 @@ export class GameEngine {
   private shield = false;
   private invulnUntil = 0;
   private hitstopUntil = 0;
+  /** 벽 반동 점프 대기 — 벽 충돌 후 150ms 안에 반대 방향 입력 시 발동 */
+  private pendingKick: { dir: 1 | -1; until: number } | null = null;
   private flashAmount = 0;
   private phase: GamePhase = 'intro';
   private deathReason: DeathReason | null = null;
@@ -106,14 +110,14 @@ export class GameEngine {
 
   /**
    * 카메라 뷰포트를 "월드 좌표" 단위로 갱신.
-   * 렌더러가 scale = 화면높이/스테이지높이 로 그리므로, 카메라의 가시 폭은
-   * 화면폭 ÷ scale 이어야 한다. (화면px를 그대로 쓰면 720px이 아닌 기기에서
-   * 골 지점이 안 보이거나 오버스크롤되는 치명 버그 — 수정 완료)
+   * 렌더러가 scale = 화면높이/DESIGN_HEIGHT 로 그리므로, 카메라의 가시 폭은
+   * 화면폭 ÷ scale 이어야 한다. 스테이지 height가 DESIGN_HEIGHT보다 크면
+   * 세로 스크롤 맵이 된다 (상하 방향 탈출 지원).
    */
   private updateCameraViewport() {
     if (!this.stage || this.viewportHeight === 0) return;
-    const scale = this.viewportHeight / this.stage.height;
-    this.camera.setViewport(this.viewportWidth / scale, this.stage.height);
+    const scale = this.viewportHeight / DESIGN_HEIGHT;
+    this.camera.setViewport(this.viewportWidth / scale, DESIGN_HEIGHT);
   }
 
   loadStage(stageId: number) {
@@ -124,7 +128,8 @@ export class GameEngine {
     this.ball.spawn(stage.spawn.x, stage.spawn.y);
     this.camera.setWorld(stage.width, stage.height);
     this.updateCameraViewport();
-    this.camera.snapTo(stage.spawn.x);
+    this.camera.snapTo(stage.spawn.x, stage.spawn.y);
+    this.pendingKick = null;
     this.brokenFloors.clear();
     this.collectedItems.clear();
     this.nearMissSeen.clear();
@@ -193,7 +198,7 @@ export class GameEngine {
       if (this.timeMs - this.introStart >= STAGE_INTRO_COOLDOWN_MS) {
         this.phase = 'playing';
       }
-      this.camera.follow(this.ball.position.x, dt);
+      this.camera.follow(this.ball.position.x, this.ball.position.y, dt);
       return;
     }
 
@@ -211,13 +216,13 @@ export class GameEngine {
     if (this.phase === 'cleared') {
       this.ball.update(dt, { left: false, right: false });
       this.updateTrail();
-      this.camera.follow(this.ball.position.x, dt);
+      this.camera.follow(this.ball.position.x, this.ball.position.y, dt);
       return;
     }
 
     // 근소실패 히트스톱 — 짧은 시간 물리 정지 (연출)
     if (this.timeMs < this.hitstopUntil) {
-      this.camera.follow(this.ball.position.x, dt);
+      this.camera.follow(this.ball.position.x, this.ball.position.y, dt);
       return;
     }
 
@@ -233,7 +238,7 @@ export class GameEngine {
     if (this.phase === 'playing' || this.phase === 'cleared') {
       this.updateTrail();
     }
-    this.camera.follow(this.ball.position.x, dt);
+    this.camera.follow(this.ball.position.x, this.ball.position.y, dt);
   }
 
   /** 물리 1스텝 (PHYSICS_STEP 고정) — 이동·충돌·게임 이벤트 */
@@ -245,14 +250,35 @@ export class GameEngine {
 
     this.ball.update(step, input);
 
-    // 벽 - 스테이지 좌우 경계
+    // 벽 - 스테이지 좌우 경계 (벽 반동 점프 가능)
     if (this.ball.position.x - this.ball.radius < 0) {
       this.ball.bounceOnWall('left', 0);
       sound.play('wall');
+      this.armWallKick(1);
     }
     if (this.ball.position.x + this.ball.radius > this.stage.width) {
       this.ball.bounceOnWall('right', this.stage.width);
       sound.play('wall');
+      this.armWallKick(-1);
+    }
+
+    // 벽 반동 점프 발동 체크 — 충돌 후 150ms 창 안에 벽 반대 방향 입력
+    if (this.pendingKick) {
+      if (this.timeMs > this.pendingKick.until) {
+        this.pendingKick = null;
+      } else if (
+        (this.pendingKick.dir === 1 && input.right) ||
+        (this.pendingKick.dir === -1 && input.left)
+      ) {
+        this.ball.wallKick(this.pendingKick.dir);
+        this.pendingKick = null;
+        sound.play('wallkick');
+        haptic('medium');
+        this.particles.burst(this.ball.position.x, this.ball.position.y, {
+          count: 6, speed: 180, size: 3.5, life: 0.4, gravity: 500, upBias: 0.6,
+        });
+        this.particles.ring(this.ball.position.x, this.ball.position.y, 56, 320);
+      }
     }
 
     // 충돌 처리 (스윕 방식 — 고속 낙하 터널링 방지)
@@ -303,6 +329,8 @@ export class GameEngine {
     if (collision.wallHit) {
       this.ball.bounceOnWall(collision.wallHit.side, collision.wallHit.x);
       sound.play('wall');
+      // side는 벽이 공의 어느 쪽에 있는지 — 반동 방향은 그 반대
+      this.armWallKick(collision.wallHit.side === 'left' ? 1 : -1);
     }
 
     if (collision.landedFloor) {
@@ -321,8 +349,8 @@ export class GameEngine {
       this.particles.ring(el.x + w / 2, el.y - SPIKE_HEIGHT, 36, 260);
     }
 
-    // 골 체크
-    if (reachedGoal(this.ball, this.stage.goal.x)) {
+    // 탈출구 체크 (상하좌우 모든 방향 지원)
+    if (reachedGoal(this.ball, this.stage.exit)) {
       this.phase = 'cleared';
       sound.play('clear');
       haptic('success');
@@ -332,6 +360,11 @@ export class GameEngine {
       this.particles.ring(this.ball.position.x, this.ball.position.y, 140, 320);
       this.events.onStageClear(this.stage.id, this.runParts);
     }
+  }
+
+  /** 벽 충돌 직후 반동 점프 대기 시작 — dir은 벽에서 멀어지는 방향 */
+  private armWallKick(dir: 1 | -1) {
+    this.pendingKick = { dir, until: this.timeMs + WALL_KICK_WINDOW_MS };
   }
 
   /** 착지 처리 — 퍼펙트 콤보(중독성 장치의 핵심) 포함 */

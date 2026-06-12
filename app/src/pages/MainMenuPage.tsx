@@ -144,7 +144,7 @@ export function MainMenuPage({ onStart, onSettings }: Props) {
           {allCleared ? '다시 도전하기' : currentStage === 1 ? '게임 시작' : '이어서 플레이'}
         </Button>
 
-        {currentStage > 1 && !confirmReset && (
+        {(currentStage > 1 || maxClearedStage > 0) && !confirmReset && (
           <button
             onClick={() => setConfirmReset(true)}
             style={{
@@ -164,7 +164,7 @@ export function MainMenuPage({ onStart, onSettings }: Props) {
         )}
         {confirmReset && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 12, opacity: 0.7 }}>정말 초기화할까요? (부품·스킨은 유지)</span>
+            <span style={{ fontSize: 12, opacity: 0.7 }}>정말 초기화할까요? (부품·스킨·완수 기록 ◆/PERFECT는 유지)</span>
             <Button
               onClick={async () => {
                 await reset();

@@ -30,6 +30,10 @@ import { DEFAULT_SKIN } from '../../utils/skins';
 export type GamePhase = 'intro' | 'playing' | 'dying' | 'cleared';
 
 export interface GameEvents {
+  /** 사망 '계수' — 연출 시작 즉시 발화 (사망 프리즈 중 일시정지→재시도로
+   *  지연 콜백이 증발해 노데스 기록이 오염되던 익스플로잇 차단, 리뷰 확정) */
+  onDeathCounted: () => void;
+  /** 사망 '처리' — 연출(450ms) 종료 후 발화: 목숨 차감·재시작/게임오버 전환 */
   onDeath: (reason: DeathReason) => void;
   /** 클리어 시 — 이번 시도에서 모은 부품 수 + 부품 전량 수집 여부 (완수 메타 기록용) */
   onStageClear: (stageId: number, partsCollected: number, allParts: boolean) => void;
@@ -79,6 +83,14 @@ export class GameEngine {
    * 일시정지를 무시하고 소진되지 않는다. (벽시계 사용은 리뷰 확정 버그였음)
    */
   private timeMs = 0;
+  /**
+   * 물리 시계(ms) — stepPhysics에서만 1스텝(1/120s)씩 누적된다 (V2 리뷰 확정 수정).
+   * 점멸·이동 가시·웨이브·폭탄 퓨즈·무적·반동 창의 기준 시계.
+   * timeMs(프레임 시계)를 쓰면 ① 한 프레임의 모든 서브스텝이 같은 시각을 공유해
+   * 저사양(30fps)에서 판정이 최대 50ms 양자화되고 ② 히트스톱 중 공만 얼고
+   * 세계(웨이브·점멸)는 흘러 박자가 영구 탈동기됐다 — 둘 다 이 시계로 해결.
+   */
+  private physMs = 0;
   /** 고정 타임스텝 누적기 — 점프 높이가 기기 프레임레이트와 무관해진다 */
   private accumulator = 0;
   private paused = false;
@@ -149,6 +161,8 @@ export class GameEngine {
     this.camera.setWorld(stage.width, stage.height);
     this.updateCameraViewport();
     this.camera.snapTo(stage.spawn.x, stage.spawn.y);
+    this.camera.clearShake(); // 일시정지 경유 재시작 시 이전 시도의 흔들림 잔존 방지 (리뷰 확정)
+    this.physMs = 0; // 물리 시계 리셋 — 점멸·이동 가시 위상이 매 시도 동일 (결정성)
     this.pendingKick = null;
     this.brokenFloors.clear();
     this.crackedBricks.clear();
@@ -269,18 +283,21 @@ export class GameEngine {
   private stepPhysics(step: number, input: { left: boolean; right: boolean }) {
     if (!this.stage) return;
 
+    // 물리 시계 — 스텝마다 누적 (서브스텝 양자화·히트스톱 누수 방지, 리뷰 확정)
+    this.physMs += step * 1000;
+
     const prevX = this.ball.position.x;
     const prevY = this.ball.position.y;
 
     this.ball.update(step, input);
 
-    // 추격 벽(셧다운 웨이브) — 게임 시계 기반 절대 위치라 일시정지에 안전.
-    // 인트로 + 유예(delayMs) 동안은 출발하지 않는다 (스폰 3초 무입력 생존 보장)
+    // 추격 벽(셧다운 웨이브) — 물리 시계 기반 절대 위치: 일시정지·히트스톱에 안전.
+    // 물리 시계는 인트로 동안 멈춰 있으므로 유예(delayMs)만 빼면 된다 (스폰 3초 무입력 생존)
     if (this.stage.chase && this.waveX !== null) {
-      const elapsed =
-        this.timeMs - this.introStart - STAGE_INTRO_COOLDOWN_MS - this.stage.chase.delayMs;
+      const elapsed = this.physMs - this.stage.chase.delayMs;
       this.waveX = WAVE_START_X + (Math.max(0, elapsed) * this.stage.chase.speed) / 1000;
-      if (this.ball.position.x < this.waveX) {
+      // 결승선 동시 도달은 플레이어 우대 — 탈출구 위에서 웨이브에 잡히지 않는다 (리뷰 확정)
+      if (this.ball.position.x < this.waveX && !reachedGoal(this.ball, this.stage.exit)) {
         // 소멸 벽에 잡힘 — 보호막 무효 (낙사와 같은 등급의 즉사)
         this.triggerDeath('wave');
         return;
@@ -290,7 +307,7 @@ export class GameEngine {
     // 점화된 폭탄의 퓨즈 소진 → 폭발 (넉백이 적용된 채 아래 충돌 검사로 이어진다)
     if (this.bombIgnited.size > 0) {
       for (const [idx, ignitedAt] of this.bombIgnited) {
-        if (this.timeMs - ignitedAt >= BOMB_FUSE_MS) {
+        if (this.physMs - ignitedAt >= BOMB_FUSE_MS) {
           this.explodeBomb(idx);
         }
       }
@@ -318,7 +335,7 @@ export class GameEngine {
 
     // 벽 반동 점프 발동 체크 — 충돌 후 150ms 창 안에 벽 반대 방향 입력
     if (this.pendingKick) {
-      if (this.timeMs > this.pendingKick.until) {
+      if (this.physMs > this.pendingKick.until) {
         this.pendingKick = null;
       } else if (
         (this.pendingKick.dir === 1 && input.right) ||
@@ -336,23 +353,24 @@ export class GameEngine {
     }
 
     // 충돌 처리 (스윕 방식 — 고속 낙하 터널링 방지)
-    // stageMs: 스테이지 시작 기준 게임 시계 — 점멸·이동 가시의 결정적 상태 계산용
+    // physMs: 물리 시계 — 점멸·이동 가시의 결정적 상태 계산용 (충돌·렌더 공유)
     const collision = detectCollisions(
       this.ball,
       this.stage.elements,
       this.stage.height,
+      this.stage.width,
       prevX,
       prevY,
       this.brokenFloors,
       this.collectedItems,
-      this.timeMs - this.introStart,
+      this.physMs,
       this.stage.bouncePeriod,
     );
 
     // 폭탄 점화 — 이미 점화/폭발된 폭탄은 무시
     for (const idx of collision.touchedBombs) {
       if (this.bombIgnited.has(idx) || this.bombExploded.has(idx)) continue;
-      this.bombIgnited.set(idx, this.timeMs);
+      this.bombIgnited.set(idx, this.physMs);
       const el = this.stage.elements[idx];
       sound.play('fuse');
       haptic('soft');
@@ -381,11 +399,20 @@ export class GameEngine {
 
     if (collision.death) {
       const lethal = collision.death;
-      if (lethal !== 'fall' && this.timeMs < this.invulnUntil) {
+      if (lethal !== 'fall' && this.physMs < this.invulnUntil) {
         // 보호막 소모 직후 무적 — 위험 방향에 따라 탈출 (천장 가시는 아래로)
         this.pendingKick = null; // 반동이 탈출 방향을 덮어쓰지 않게
-        if (lethal === 'ceiling-spike') this.ball.reboundDown();
-        else this.ball.rebound();
+        if (lethal === 'explosive' && collision.deathIndex !== undefined) {
+          // 무적 중 폭발 발판 착지: consumeShield와 동일하게 발판을 파괴하고
+          // 윗면에서 바운스 — 안 부수면 무적 종료 직후 같은 발판에서 즉사 (리뷰 확정)
+          this.brokenFloors.add(collision.deathIndex);
+          sound.play('explosive');
+          this.ball.bounceOnFloor(this.stage.elements[collision.deathIndex].y);
+        } else if (lethal === 'ceiling-spike') {
+          this.ball.reboundDown();
+        } else {
+          this.ball.rebound();
+        }
       } else if (lethal !== 'fall' && this.shield) {
         this.consumeShield(lethal, collision.deathIndex);
       } else {
@@ -433,8 +460,8 @@ export class GameEngine {
       const el = this.stage.elements[idx];
       const w = el.width ?? 40;
       this.hitstopUntil = this.timeMs + NEAR_MISS_HITSTOP_MS;
-      // 히트스톱이 벽 반동 입력 창을 잠식하지 않도록 창을 같은 만큼 연장
-      if (this.pendingKick) this.pendingKick.until += NEAR_MISS_HITSTOP_MS;
+      // 반동 창(physMs 기준)은 히트스톱 동안 물리 시계가 함께 얼어 자동 보존된다
+      // (기존의 수동 연장 보정은 physMs 도입으로 불필요해져 제거 — 리뷰 확정 수정)
       sound.play('whoosh');
       this.camera.shake(3, 120);
       this.particles.ring(el.x + w / 2, el.y - SPIKE_HEIGHT, 36, 260);
@@ -443,6 +470,7 @@ export class GameEngine {
     // 탈출구 체크 (상하좌우 모든 방향 지원)
     if (reachedGoal(this.ball, this.stage.exit)) {
       this.phase = 'cleared';
+      this.bombIgnited.clear(); // 클리어 연출 중 미폭발 점멸이 영원히 남지 않게 (리뷰 확정)
       sound.play('clear');
       haptic('success');
       this.particles.burst(this.ball.position.x, this.ball.position.y, {
@@ -461,9 +489,9 @@ export class GameEngine {
     }
   }
 
-  /** 벽 충돌 직후 반동 점프 대기 시작 — dir은 벽에서 멀어지는 방향 */
+  /** 벽 충돌 직후 반동 점프 대기 시작 — dir은 벽에서 멀어지는 방향 (물리 시계 기준) */
   private armWallKick(dir: 1 | -1) {
-    this.pendingKick = { dir, until: this.timeMs + WALL_KICK_WINDOW_MS };
+    this.pendingKick = { dir, until: this.physMs + WALL_KICK_WINDOW_MS };
   }
 
   /** 착지 처리 — 퍼펙트 콤보(중독성 장치의 핵심) 포함 */
@@ -575,7 +603,7 @@ export class GameEngine {
   private consumeShield(reason: Exclude<DeathReason, 'fall'>, deathIndex?: number) {
     if (!this.stage) return;
     this.shield = false;
-    this.invulnUntil = this.timeMs + SHIELD_INVULN_MS;
+    this.invulnUntil = this.physMs + SHIELD_INVULN_MS; // 물리 시계 — 히트스톱에 잠식되지 않음
     this.combo = 0;
     this.pendingKick = null;
     sound.play('shieldBreak');
@@ -607,6 +635,10 @@ export class GameEngine {
     this.deathStartTime = this.timeMs;
     this.flashAmount = 1.0;
     this.combo = 0;
+    this.bombIgnited.clear(); // 사망 연출 중 미폭발 점멸이 남지 않게 (리뷰 확정)
+    // 사망 '계수'는 즉시 — 연출 450ms 중 일시정지→재시도로 onDeath가 증발해도
+    // 노데스 기록·사망 통계가 오염되지 않는다 (리뷰 확정 익스플로잇 차단)
+    this.events.onDeathCounted();
     if (reason === 'spike' || reason === 'ceiling-spike') {
       sound.play('spike');
     } else if (reason === 'explosive' || reason === 'wave') {
@@ -649,7 +681,7 @@ export class GameEngine {
         bombIgnited: this.bombIgnited,
         bombExploded: this.bombExploded,
         waveX: this.waveX,
-        stageMs: this.timeMs - this.introStart,
+        stageMs: this.physMs, // 물리 시계 — 충돌 판정과 동일 기준 (보이는 것 = 죽는 것)
         collectedItems: this.collectedItems,
         flashAmount: this.flashAmount,
         goalReached: this.phase === 'cleared',
@@ -660,7 +692,7 @@ export class GameEngine {
         combo: this.combo,
         runParts: this.runParts,
         shieldActive: this.shield,
-        invulnActive: this.timeMs < this.invulnUntil,
+        invulnActive: this.physMs < this.invulnUntil,
         showIntro: this.phase === 'intro',
       },
       this.viewportWidth,

@@ -59,6 +59,7 @@ export function detectCollisions(
   ball: Ball,
   elements: StageElement[],
   stageHeight: number,
+  stageWidth: number,
   prevX: number,
   prevY: number,
   brokenFloors: Set<number>,
@@ -112,10 +113,15 @@ export function detectCollisions(
       if (overlapX && (sweptDown || shallow)) {
         const centerOn = curX >= el.x && curX <= el.x + fw;
         const overlap = Math.min(curX + r, el.x + fw) - Math.max(curX - r, el.x);
+        // 우선순위: ① 윗면이 더 높은(y 작은) 발판 — 낙하 스윕에서 먼저 닿는 쪽이
+        // 물리적으로 옳다 (리뷰 확정: 높이 다른 발판 겹침에서 아래쪽이 이기던 버그)
+        // ② 공 중심이 올라간 발판 ③ 겹침 폭
         if (
           !bestFloor ||
-          (centerOn && !bestFloor.centerOn) ||
-          (centerOn === bestFloor.centerOn && overlap > bestFloor.overlap)
+          el.y < bestFloor.el.y ||
+          (el.y === bestFloor.el.y &&
+            ((centerOn && !bestFloor.centerOn) ||
+              (centerOn === bestFloor.centerOn && overlap > bestFloor.overlap)))
         ) {
           bestFloor = { el, index: i, overlap, centerOn };
         }
@@ -182,7 +188,16 @@ export function detectCollisions(
         curX + r > wx &&
         curX - r < wx + ww
       ) {
-        const fromLeft = prevX < wx + ww / 2;
+        // 점멸 벽이 공 몸통 위치에서 실체화된 경우(이전 스텝에도 이미 겹쳐 있었음):
+        // 사출하지 않고 분리될 때까지 통과 — 순간이동·경계 진동 방지 (리뷰 확정)
+        const prevInside =
+          prevX + r > wx && prevX - r < wx + ww && prevY + r > wy && prevY - r < wy + wh;
+        if (prevInside && el.blinkPeriodMult) continue;
+        let fromLeft = prevX < wx + ww / 2;
+        // 월드 경계를 벗어나는 면으로는 사출 금지 — 경계 밀착 벽에서 공이 월드 밖으로
+        // 튕겨 120Hz 진동하던 버그 수정 (리뷰 확정, S20 점멸 벽)
+        if (!fromLeft && wx + ww + r > stageWidth) fromLeft = true;
+        else if (fromLeft && wx - r < 0) fromLeft = false;
         result.wallHit = { side: fromLeft ? 'right' : 'left', x: fromLeft ? wx : wx + ww };
       }
     } else if (el.type === 'bomb') {

@@ -40,11 +40,13 @@ export function GamePlayPage({ onExit }: Props) {
   const lastUnlockMsg = useGameStore((s) => s.lastUnlockMsg);
 
   const onDeath = useGameStore((s) => s.onDeath);
+  const countDeath = useGameStore((s) => s.countDeath);
   const recordStageResult = useGameStore((s) => s.recordStageResult);
   const stageRecords = useGameStore((s) => s.stageRecords);
   const onStageCleared = useGameStore((s) => s.onStageCleared);
   const retryStage = useGameStore((s) => s.retryStage);
   const giveUpToCheckpoint = useGameStore((s) => s.giveUpToCheckpoint);
+  const quitToMenu = useGameStore((s) => s.quitToMenu);
   const pause = useGameStore((s) => s.pause);
   const resume = useGameStore((s) => s.resume);
   const reviveWithAd = useGameStore((s) => s.reviveWithAd);
@@ -64,6 +66,11 @@ export function GamePlayPage({ onExit }: Props) {
     if (!canvas || !touchTarget) return;
 
     const engine = new GameEngine(canvas, {
+      // 사망 계수는 연출 시작 즉시 — 연출 중 일시정지·재시도로 onDeath가
+      // 증발해도 노데스 기록·통계는 보존된다 (리뷰 확정)
+      onDeathCounted: () => {
+        void countDeath();
+      },
       onDeath: async () => {
         await onDeath();
         const state = useGameStore.getState();
@@ -280,8 +287,9 @@ export function GamePlayPage({ onExit }: Props) {
               engineRef.current?.loadStage(currentStage);
             }}
             onQuit={() => {
+              // 일시정지 → 메뉴: 진행 보존 (체크포인트 롤백은 게임오버 전용 — 리뷰 확정)
               resume();
-              giveUpToCheckpoint();
+              quitToMenu();
               onExit();
             }}
           />

@@ -29,11 +29,21 @@ export class Camera {
   setViewport(w: number, h: number) {
     this.viewportWidth = w;
     this.viewportHeight = h;
+    // 뷰포트가 줄었을 때 카메라가 월드 밖을 비추지 않게 즉시 재클램프 (리뷰 확정)
+    this.x = this.clampX(this.x);
+    this.y = this.clampY(this.y);
   }
 
   setWorld(w: number, h: number) {
     this.worldWidth = w;
     this.worldHeight = h;
+    this.x = this.clampX(this.x);
+    this.y = this.clampY(this.y);
+  }
+
+  /** 흔들림 잔여 상태 제거 — 스테이지 재시작 시 이전 시도의 흔들림이 이어지지 않게 */
+  clearShake() {
+    this.shakeRemainMs = 0;
   }
 
   snapTo(targetX: number, targetY = 0) {
@@ -50,9 +60,15 @@ export class Camera {
     const fx = 1 - Math.pow(1 - CAMERA_LERP_X, dt * 60);
     const fy = 1 - Math.pow(1 - CAMERA_LERP_Y, dt * 60);
 
-    // 가로 데드존: 중앙 ±CAMERA_DEADZONE_X
+    // 가로 데드존: 중앙 ±CAMERA_DEADZONE_X.
+    // 좁은 화면(세로 폰)에서는 데드존~하드가드 사이 추적 버짓이 lerp 정상상태
+    // 지연(~96px)보다 작아져 하드가드가 상시 1:1 추적기가 된다(멀미 방지 목적 훼손,
+    // 리뷰 확정) — 데드존을 줄여 버짓을 항상 확보한다. 넓은 화면에서는 변화 없음.
     const halfW = this.viewportWidth * 0.5;
-    const dzX = this.viewportWidth * CAMERA_DEADZONE_X;
+    const dzX = Math.min(
+      this.viewportWidth * CAMERA_DEADZONE_X,
+      Math.max(60, halfW - this.viewportWidth * CAMERA_HARD_EDGE - 96),
+    );
     const centerX = this.x + halfW;
     if (targetX < centerX - dzX) {
       this.x += (this.clampX(targetX + dzX - halfW) - this.x) * fx;

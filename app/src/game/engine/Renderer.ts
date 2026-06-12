@@ -8,6 +8,7 @@ import {
   DESIGN_HEIGHT,
   BOMB_FUSE_MS,
   BOMB_BLAST_RADIUS,
+  BOMB_KNOCKBACK_RADIUS,
   MOVING_SPIKE_HEIGHT,
 } from '../../utils/constants';
 import type { StageData, StageElement } from '../../utils/types';
@@ -229,30 +230,13 @@ export class Renderer {
       }
     } else if (el.type === 'spike') {
       const w = el.width ?? SPIKE_WIDTH;
-      const baseY = el.y;
-      const tipY = baseY - SPIKE_HEIGHT;
-      const segments = Math.max(1, Math.floor(w / 14));
-      const segW = w / segments;
-      ctx.fillStyle = FG;
-      ctx.beginPath();
-      for (let i = 0; i < segments; i++) {
-        const sx = el.x + i * segW;
-        ctx.moveTo(sx, baseY);
-        ctx.lineTo(sx + segW / 2, tipY);
-        ctx.lineTo(sx + segW, baseY);
-      }
-      ctx.closePath();
-      ctx.fill();
-      // 진짜 가시만 미세 점멸(전기 플리커) — 가짜 가시는 완전 정지 (V2 관찰 문법).
-      // 1.2초마다 120ms 동안 몸통에 가는 검은 선이 지나간다.
-      if (!el.fake && t % 1200 < 120) {
-        ctx.fillStyle = BG;
-        ctx.fillRect(el.x, baseY - SPIKE_HEIGHT * 0.45, w, 2);
-      }
+      // 진짜 가시는 0.9초마다 200ms 동안 윤곽선으로 반전(전기 플리커) — 가짜는 완전
+      // 정지 (V2 관찰 문법). 리뷰 확정: 기존 2px 검은 선은 실전에서 식별 불가 +
+      // '깜빡임=진짜' 규칙을 천장·이동 가시에도 적용해 S17 힌트가 문자 그대로 참이 되게.
+      this.drawSpikeTeeth(el.x, el.y, w, -SPIKE_HEIGHT, !el.fake && this.spikeFlicker(t));
     } else if (el.type === 'ceiling_spike') {
       const w = el.width ?? SPIKE_WIDTH;
       const baseY = el.y;
-      const tipY = baseY + CEILING_SPIKE_HEIGHT;
       // 납땜 침이 매달려 내려온 모습 — 짧은 와이어
       // (y=0부터 그리면 세로 맵에서 선반·탈출구를 관통하므로 120px로 제한)
       ctx.strokeStyle = FG;
@@ -261,18 +245,8 @@ export class Renderer {
       ctx.moveTo(el.x + w / 2, Math.max(0, baseY - 120));
       ctx.lineTo(el.x + w / 2, baseY);
       ctx.stroke();
-      const segments = Math.max(1, Math.floor(w / 14));
-      const segW = w / segments;
-      ctx.fillStyle = FG;
-      ctx.beginPath();
-      for (let i = 0; i < segments; i++) {
-        const sx = el.x + i * segW;
-        ctx.moveTo(sx, baseY);
-        ctx.lineTo(sx + segW / 2, tipY);
-        ctx.lineTo(sx + segW, baseY);
-      }
-      ctx.closePath();
-      ctx.fill();
+      // 천장 가시도 진짜이므로 같은 플리커 — '깜빡임=진짜' 문법 통일 (리뷰 확정)
+      this.drawSpikeTeeth(el.x, baseY, w, CEILING_SPIKE_HEIGHT, this.spikeFlicker(t));
     } else if (el.type === 'part') {
       // 부품(◆): 회전하는 마름모 픽셀 — 살짝 떠다니는 펄스
       const pulse = 1 + 0.15 * Math.sin(t * 0.006 + index);
@@ -329,7 +303,36 @@ export class Renderer {
     } else if (el.type === 'launcher') {
       this.drawLauncher(el, t);
     } else if (el.type === 'moving_spike') {
-      this.drawMovingSpike(el, state.stageMs, period);
+      this.drawMovingSpike(el, state.stageMs, period, t);
+    }
+  }
+
+  /** 진짜 가시 공통 플리커 신호: 0.9초 주기, 200ms 동안 윤곽선 반전 (가짜=정지) */
+  private spikeFlicker(t: number): boolean {
+    return t % 900 < 200;
+  }
+
+  /** 가시 톱니 공통 드로잉 — height 부호로 방향(음수=위로), flicker면 윤곽선만 */
+  private drawSpikeTeeth(x: number, baseY: number, w: number, height: number, flicker: boolean) {
+    const ctx = this.ctx;
+    const tipY = baseY + height;
+    const segments = Math.max(1, Math.floor(w / 14));
+    const segW = w / segments;
+    ctx.beginPath();
+    for (let i = 0; i < segments; i++) {
+      const sx = x + i * segW;
+      ctx.moveTo(sx, baseY);
+      ctx.lineTo(sx + segW / 2, tipY);
+      ctx.lineTo(sx + segW, baseY);
+    }
+    ctx.closePath();
+    if (flicker) {
+      ctx.strokeStyle = FG;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = FG;
+      ctx.fill();
     }
   }
 
@@ -361,10 +364,13 @@ export class Renderer {
       ctx.strokeStyle = FG;
       ctx.lineWidth = 2;
       ctx.strokeRect(el.x, el.y, w, FLOOR_THICKNESS);
+      this.drawPerfectZone(el, w); // 충돌은 살아 있으므로 조준 보조 유지 (리뷰 확정)
       return;
     }
     ctx.fillStyle = FG;
     ctx.fillRect(el.x, el.y, w, FLOOR_THICKNESS);
+    // 점멸 발판도 일반 발판과 같은 퍼펙트 존 판정을 받는다 — 마커 누락 수정 (리뷰 확정)
+    this.drawPerfectZone(el, w);
   }
 
   /** 점멸 벽 (V2, S20) — 발판과 같은 상태 문법의 세로 버전 */
@@ -431,30 +437,37 @@ export class Renderer {
     this.drawPerfectZone(el, w);
   }
 
-  /** 폭탄(과충전 콘덴서, V2) — 점화 전: 반경 힌트 / 점화 후: 가속 점멸 예고 */
+  /** 폭탄(과충전 콘덴서, V2) — 점화 전: 반경 힌트 / 점화 후: 가속 점멸 예고.
+   *  점선 원 2겹: 안쪽=벽 파괴 반경(170), 바깥=넉백 반경(320) — 넉백 반경이
+   *  안 보이면 '원 밖인 줄 알았는데 밀려남'이 생긴다 (리뷰 확정 공정성 수정) */
   private drawBomb(el: StageElement, index: number, state: RenderState) {
     if (state.bombExploded.has(index)) return;
     const ctx = this.ctx;
     const t = state.timeMs;
     const ignitedAt = state.bombIgnited.get(index);
 
-    // 폭발 반경 — 항상 점선 원으로 표시 (공정성: 예고 없는 폭발 금지)
-    const ringAlpha = ignitedAt !== undefined ? 0.5 : 0.18;
-    ctx.strokeStyle = `rgba(255,255,255,${ringAlpha})`;
+    // 안쪽 원 — 벽 파괴 반경 (공정성: 예고 없는 폭발 금지. 0.18은 식별 불가라 상향)
+    ctx.strokeStyle = `rgba(255,255,255,${ignitedAt !== undefined ? 0.5 : 0.3})`;
     ctx.lineWidth = 1.5;
     ctx.setLineDash([6, 10]);
     ctx.beginPath();
     ctx.arc(el.x, el.y, BOMB_BLAST_RADIUS, 0, Math.PI * 2);
+    ctx.stroke();
+    // 바깥 원 — 넉백 반경 (대시 패턴을 다르게: 성긴 점선 = 밀려나는 영역)
+    ctx.strokeStyle = `rgba(255,255,255,${ignitedAt !== undefined ? 0.3 : 0.12})`;
+    ctx.setLineDash([3, 14]);
+    ctx.beginPath();
+    ctx.arc(el.x, el.y, BOMB_KNOCKBACK_RADIUS, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
 
     // 본체: 콘덴서 원통 (둥근 사각) + 위로 솟은 단자 2개
     let lit = true;
     if (ignitedAt !== undefined) {
-      // 퓨즈 진행에 따라 점멸 가속: 4Hz → 14Hz
-      const p = Math.min(1, (t - ignitedAt) / BOMB_FUSE_MS);
+      // 퓨즈 진행에 따라 점멸 가속: 4Hz → 14Hz (물리 시계 기준 — 점화 기록과 동일 시계)
+      const p = Math.min(1, (state.stageMs - ignitedAt) / BOMB_FUSE_MS);
       const hz = 4 + p * 10;
-      lit = Math.floor((t - ignitedAt) / (500 / hz)) % 2 === 0;
+      lit = Math.floor((state.stageMs - ignitedAt) / (500 / hz)) % 2 === 0;
     }
     ctx.fillStyle = FG;
     if (lit) {
@@ -498,7 +511,7 @@ export class Renderer {
   }
 
   /** 이동 가시 (V2) — 상하 왕복 납땜 침 뭉치. 경로 점선 = 공정성(이동 범위 예고) */
-  private drawMovingSpike(el: StageElement, stageMs: number, period: number) {
+  private drawMovingSpike(el: StageElement, stageMs: number, period: number, t: number) {
     const ctx = this.ctx;
     const w = el.width ?? 40;
     const range = el.range ?? 0;
@@ -516,10 +529,11 @@ export class Renderer {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // 본체: 위아래 양방향 톱니 (밟는 면이 없는 '순수 위험물'임이 보이게)
+    // 본체: 위아래 양방향 톱니 (밟는 면이 없는 '순수 위험물'임이 보이게).
+    // 진짜 가시 공통 플리커 적용 — '깜빡임=진짜' 문법 통일 (리뷰 확정)
+    const flicker = this.spikeFlicker(t);
     const segments = Math.max(1, Math.floor(w / 14));
     const segW = w / segments;
-    ctx.fillStyle = FG;
     ctx.beginPath();
     for (let i = 0; i < segments; i++) {
       const sx = el.x + i * segW;
@@ -533,9 +547,15 @@ export class Renderer {
       ctx.lineTo(sx + segW, midY);
     }
     ctx.closePath();
-    ctx.fill();
-    // 중심 코어 띠
-    ctx.fillRect(el.x, midY - 2, w, 4);
+    if (flicker) {
+      ctx.strokeStyle = FG;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = FG;
+      ctx.fill();
+      ctx.fillRect(el.x, midY - 2, w, 4); // 중심 코어 띠
+    }
   }
 
   /** 추격 벽 「셧다운 웨이브」 (V2, S19) — 왼쪽에서 화면을 지우며 다가오는 소멸 전선 */

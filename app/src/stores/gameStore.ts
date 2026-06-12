@@ -38,10 +38,17 @@ interface GameState {
   hydrate: () => Promise<void>;
   goToScreen: (screen: Screen) => void;
   startFromProgress: () => Promise<void>;
+  /** 사망 '계수' — 엔진이 사망 연출 시작 즉시 호출. 연출 중 일시정지→재시도로
+   *  지연 콜백이 증발해도 노데스 기록·통계가 오염되지 않는다 (리뷰 확정) */
+  countDeath: () => Promise<void>;
+  /** 사망 '처리' — 연출 종료 후: 목숨 차감·게임오버 판정 (계수는 countDeath가 담당) */
   onDeath: () => Promise<void>;
   /** 클리어 직후 완수 기록 병합 — onStageCleared보다 먼저 호출할 것 (stageDeaths 사용) */
   recordStageResult: (stageId: number, allParts: boolean) => Promise<void>;
   onStageCleared: () => Promise<void>;
+  /** 일시정지 → 메뉴 복귀: 진행(currentStage) 보존. 체크포인트 롤백은
+   *  게임오버 전용(giveUpToCheckpoint) — 무경고 진행 손실 방지 (리뷰 확정) */
+  quitToMenu: () => void;
   consumeAd: (rewarded: boolean) => void;
   reviveWithAd: () => void;
   retryStage: () => void;
@@ -98,14 +105,18 @@ export const useGameStore = create<GameState>((set, get) => ({
     // currentStage 그대로 사용
   },
 
-  async onDeath() {
+  async countDeath() {
+    set({ stageDeaths: get().stageDeaths + 1 });
     await incrementDeaths();
-    const { lives, stageDeaths } = get();
+  },
+
+  async onDeath() {
+    const { lives } = get();
     const nextLives = lives - 1;
     if (nextLives > 0) {
-      set({ lives: nextLives, stageDeaths: stageDeaths + 1 });
+      set({ lives: nextLives });
     } else {
-      set({ lives: 0, isGameOver: true, stageDeaths: stageDeaths + 1 });
+      set({ lives: 0, isGameOver: true });
     }
   },
 
@@ -144,11 +155,14 @@ export const useGameStore = create<GameState>((set, get) => ({
   consumeAd(rewarded: boolean) {
     const { showAd } = get();
     if (showAd === 'rewarded' && rewarded) {
-      // 부활: 목숨을 3개로 리필 (HUD 하트 3개와 일치 — 기존 6개 버그 수정)
+      // 부활: 목숨을 3개로 리필 (HUD 하트 3개와 일치 — 기존 6개 버그 수정).
+      // 스테이지를 처음부터 다시 시작하는 '새 시도'이므로 노데스 카운터도 리셋
+      // (시도 단위 의미론 — 경로별 판정 비일관 수정, 리뷰 확정)
       set({
         lives: INITIAL_LIVES,
         isGameOver: false,
         showAd: null,
+        stageDeaths: 0,
       });
     } else if (showAd === 'interstitial') {
       const next = get().pendingNextStage;
@@ -182,6 +196,23 @@ export const useGameStore = create<GameState>((set, get) => ({
       isPaused: false,
       showAd: null,
       pendingNextStage: null,
+      // 처음부터 다시 시작하는 '새 시도' — 노데스 카운터 리셋 (시도 단위 의미론, 리뷰 확정)
+      stageDeaths: 0,
+    });
+  },
+
+  quitToMenu() {
+    // 진행(currentStage)과 저장소는 건드리지 않는다 — 일시정지에서 메뉴로 나가는
+    // 행위가 체크포인트 롤백(영구 진행 손실)을 일으키던 문제 수정 (리뷰 확정)
+    set({
+      screen: 'menu',
+      lives: INITIAL_LIVES,
+      isGameOver: false,
+      isStageClearing: false,
+      isPaused: false,
+      showAd: null,
+      pendingNextStage: null,
+      stageDeaths: 0,
     });
   },
 
@@ -209,7 +240,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   async reset() {
-    // 진행만 초기화 — 해금(부품/스킨)은 unlockStore 소관으로 유지된다
+    // 진행만 초기화 — 해금(부품/스킨)과 완수 기록(stageRecords)은 성취 데이터로 유지
     await resetProgress();
     set({
       currentStage: 1,
@@ -222,6 +253,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       showAd: null,
       pendingNextStage: null,
       lastUnlockMsg: null,
+      stageDeaths: 0,
     });
   },
 }));

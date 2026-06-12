@@ -46,6 +46,7 @@ export function movingSpikeOffset(
   const range = el.range ?? 0;
   if (range === 0) return 0;
   const T = bouncePeriodSec * 1000 * (el.periodMult ?? 4);
-  const t = (stageMs % T) / T;
+  // blinkPhase 재사용 — 여러 이동 가시를 엇박으로 배치 (0~1)
+  const t = ((((stageMs + (el.blinkPhase ?? 0) * T) % T) + T) % T) / T;
   return (range * (1 - Math.cos(t * Math.PI * 2))) / 2;
 }

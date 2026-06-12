@@ -17,6 +17,7 @@ import {
   PHYSICS_STEP,
   DESIGN_HEIGHT,
   WALL_KICK_WINDOW_MS,
+  WALL_HIT_MIN_SPEED,
 } from '../../utils/constants';
 import { sound } from '../../services/sound';
 import { haptic } from '../../services/haptic';
@@ -251,15 +252,23 @@ export class GameEngine {
     this.ball.update(step, input);
 
     // 벽 - 스테이지 좌우 경계 (벽 반동 점프 가능)
+    // 일정 속도 이상으로 부딪힐 때만 '충돌' — 벽에 밀착해 누르고 있을 때
+    // 효과음이 초당 120회 연타되고 반동 창이 무한해지던 버그 수정
     if (this.ball.position.x - this.ball.radius < 0) {
+      const impact = this.ball.velocity.x < -WALL_HIT_MIN_SPEED;
       this.ball.bounceOnWall('left', 0);
-      sound.play('wall');
-      this.armWallKick(1);
+      if (impact) {
+        sound.play('wall');
+        this.armWallKick(1);
+      }
     }
     if (this.ball.position.x + this.ball.radius > this.stage.width) {
+      const impact = this.ball.velocity.x > WALL_HIT_MIN_SPEED;
       this.ball.bounceOnWall('right', this.stage.width);
-      sound.play('wall');
-      this.armWallKick(-1);
+      if (impact) {
+        sound.play('wall');
+        this.armWallKick(-1);
+      }
     }
 
     // 벽 반동 점프 발동 체크 — 충돌 후 150ms 창 안에 벽 반대 방향 입력
@@ -316,6 +325,7 @@ export class GameEngine {
       const lethal = collision.death;
       if (lethal !== 'fall' && this.timeMs < this.invulnUntil) {
         // 보호막 소모 직후 무적 — 위험 방향에 따라 탈출 (천장 가시는 아래로)
+        this.pendingKick = null; // 반동이 탈출 방향을 덮어쓰지 않게
         if (lethal === 'ceiling-spike') this.ball.reboundDown();
         else this.ball.rebound();
       } else if (lethal !== 'fall' && this.shield) {
@@ -327,10 +337,16 @@ export class GameEngine {
     }
 
     if (collision.wallHit) {
+      const impact =
+        collision.wallHit.side === 'left'
+          ? this.ball.velocity.x < -WALL_HIT_MIN_SPEED
+          : this.ball.velocity.x > WALL_HIT_MIN_SPEED;
       this.ball.bounceOnWall(collision.wallHit.side, collision.wallHit.x);
-      sound.play('wall');
-      // side는 벽이 공의 어느 쪽에 있는지 — 반동 방향은 그 반대
-      this.armWallKick(collision.wallHit.side === 'left' ? 1 : -1);
+      if (impact) {
+        sound.play('wall');
+        // side는 벽이 공의 어느 쪽에 있는지 — 반동 방향은 그 반대
+        this.armWallKick(collision.wallHit.side === 'left' ? 1 : -1);
+      }
     }
 
     if (collision.landedFloor) {
@@ -344,6 +360,8 @@ export class GameEngine {
       const el = this.stage.elements[idx];
       const w = el.width ?? 40;
       this.hitstopUntil = this.timeMs + NEAR_MISS_HITSTOP_MS;
+      // 히트스톱이 벽 반동 입력 창을 잠식하지 않도록 창을 같은 만큼 연장
+      if (this.pendingKick) this.pendingKick.until += NEAR_MISS_HITSTOP_MS;
       sound.play('whoosh');
       this.camera.shake(3, 120);
       this.particles.ring(el.x + w / 2, el.y - SPIKE_HEIGHT, 36, 260);
@@ -370,6 +388,8 @@ export class GameEngine {
   /** 착지 처리 — 퍼펙트 콤보(중독성 장치의 핵심) 포함 */
   private handleLanding(landed: { el: StageData['elements'][number]; index: number; perfect: boolean }) {
     if (!this.stage) return;
+    // 착지하면 벽 반동 창 소멸 — 바닥 위에서 '고스트 벽킥'이 발동하던 버그 수정
+    this.pendingKick = null;
     const { el, index, perfect } = landed;
     const variant = el.variant ?? 'normal';
     const bx = this.ball.position.x;
@@ -411,6 +431,7 @@ export class GameEngine {
     this.shield = false;
     this.invulnUntil = this.timeMs + SHIELD_INVULN_MS;
     this.combo = 0;
+    this.pendingKick = null;
     sound.play('shieldBreak');
     haptic('medium');
     this.camera.shake(5, 200);

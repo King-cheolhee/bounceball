@@ -35,8 +35,14 @@ export const WALL_BOUNCE_DAMPING = 0.6;
 export const WALL_KICK_WINDOW_MS = 150;
 /** 벽 반동 수평 속도 = 최고속도 × 배수 (일반 이동보다 멀리 날아간다) */
 export const WALL_KICK_SPEED_MULT = 1.35;
-/** 초과 속도(벽 반동)가 최고속도로 잦아드는 감쇠율 (프레임 독립) */
-export const OVERSPEED_DECAY = 0.985;
+/** 초과 속도(벽 반동)가 최고속도로 잦아드는 감쇠율 (1/120s 스텝 기준).
+ *  0.997 → 약 0.8초에 걸쳐 잦아듦: 체공 한 번 동안 대부분 유지 (리뷰 후 0.985에서 상향) */
+export const OVERSPEED_DECAY = 0.997;
+/** 진행 방향과 반대 입력 시 제동 배수 — 벽 반동 후 빠른 방향 전환(벽타기의 손맛) */
+export const BRAKE_MULTIPLIER = 2;
+/** 이 속도 이상으로 벽에 부딪혀야 '충돌'로 인정 (효과음·반동 창 발동).
+ *  벽에 밀착해 누르고 있을 때 매 스텝 연타되는 것 방지 */
+export const WALL_HIT_MIN_SPEED = 30;
 
 export const CAMERA_FOLLOW_X_OFFSET = 0.35;
 export const CAMERA_FOLLOW_LERP = 0.12;

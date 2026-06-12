@@ -76,7 +76,7 @@ export class Renderer {
     this.drawBackgroundDots(state.stage, state.camera, viewportWidth / scale, DESIGN_HEIGHT);
 
     // 탈출구 표시 (상하좌우 어느 방향이든)
-    this.drawExit(state.stage, state.timeMs);
+    this.drawExit(state.stage, state.timeMs, state.goalReached);
 
     // 엘리먼트 렌더링
     for (let i = 0; i < state.stage.elements.length; i++) {
@@ -128,9 +128,15 @@ export class Renderer {
   }
 
   /** 탈출구 — 흐르는 점선 사각형 + 점멸 코어. 상하좌우 어느 방향이든 동일 표현 */
-  private drawExit(stage: StageData, t: number) {
+  private drawExit(stage: StageData, t: number, reached: boolean) {
     const ctx = this.ctx;
     const e = stage.exit;
+    if (reached) {
+      // 클리어 순간 — 탈출구가 점등되는 피드백
+      const pulse = 0.35 + 0.3 * Math.sin(t * 0.02);
+      ctx.fillStyle = `rgba(255,255,255,${pulse})`;
+      ctx.fillRect(e.x, e.y, e.width, e.height);
+    }
     ctx.strokeStyle = FG;
     ctx.lineWidth = 3;
     ctx.setLineDash([8, 8]);
@@ -211,11 +217,12 @@ export class Renderer {
       const w = el.width ?? SPIKE_WIDTH;
       const baseY = el.y;
       const tipY = baseY + CEILING_SPIKE_HEIGHT;
-      // 납땜 침이 위에서 매달려 내려온 모습 — 천장까지 와이어
+      // 납땜 침이 매달려 내려온 모습 — 짧은 와이어
+      // (y=0부터 그리면 세로 맵에서 선반·탈출구를 관통하므로 120px로 제한)
       ctx.strokeStyle = FG;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(el.x + w / 2, 0);
+      ctx.moveTo(el.x + w / 2, Math.max(0, baseY - 120));
       ctx.lineTo(el.x + w / 2, baseY);
       ctx.stroke();
       const segments = Math.max(1, Math.floor(w / 14));

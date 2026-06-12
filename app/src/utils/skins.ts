@@ -11,11 +11,13 @@ export interface SkinDef {
   cost: number; // 부품(◆) 비용. 0 = 기본 보유
 }
 
+// 가격 합계 140 — 전 스테이지 부품 약 112개 + 약간의 재도전으로 전부 해금 가능한 균형
+// (기존 합계 170은 1회차 완주로 불가능 — 리뷰 경제 실측 반영)
 export const SKINS: SkinDef[] = [
   { id: 'dot', name: '도트', desc: '마지막 픽셀의 처음 모습', cost: 0 },
-  { id: 'block', name: '픽셀 블록', desc: '사각 픽셀 — 굵직한 잔상을 남긴다', cost: 25 },
-  { id: 'cursor', name: '커서', desc: '십자 커서 — 입력 신호의 흔적', cost: 55 },
-  { id: 'glitch', name: '글리치', desc: '점멸하는 잔상 — 화면이 버틸 수 있을까', cost: 90 },
+  { id: 'block', name: '픽셀 블록', desc: '사각 픽셀 — 굵직한 잔상을 남긴다', cost: 20 },
+  { id: 'cursor', name: '커서', desc: '십자 커서 — 입력 신호의 흔적', cost: 45 },
+  { id: 'glitch', name: '글리치', desc: '점멸하는 잔상 — 화면이 버틸 수 있을까', cost: 75 },
 ];
 
 export const DEFAULT_SKIN: SkinId = 'dot';

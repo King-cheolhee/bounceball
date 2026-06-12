@@ -7,6 +7,7 @@ import {
   WALL_BOUNCE_DAMPING,
   WALL_KICK_SPEED_MULT,
   OVERSPEED_DECAY,
+  BRAKE_MULTIPLIER,
 } from '../../utils/constants';
 import type { GameInput } from '../../utils/types';
 
@@ -52,16 +53,30 @@ export class Ball {
   update(dt: number, input: GameInput) {
     this.velocity.y += this.gravity * dt;
 
-    if (input.left) this.velocity.x -= HORIZONTAL_ACCELERATION * dt;
-    if (input.right) this.velocity.x += HORIZONTAL_ACCELERATION * dt;
+    const max = this.maxHorizontalSpeed;
+    // 가속은 상한(max)까지만 — 입력으로는 절대 max를 넘지 못한다.
+    // (리뷰 확정 critical: 기존 코드는 가속이 무제한이라 821px/s까지 폭주해
+    //  모든 구멍/벽 설계가 무너졌음). 반대 방향 입력은 2배 제동 — 벽타기 방향 전환.
+    if (input.left) {
+      const a = this.velocity.x > 0 ? HORIZONTAL_ACCELERATION * BRAKE_MULTIPLIER : HORIZONTAL_ACCELERATION;
+      if (this.velocity.x > -max) {
+        this.velocity.x = Math.max(-max, this.velocity.x - a * dt);
+      }
+    }
+    if (input.right) {
+      const a = this.velocity.x < 0 ? HORIZONTAL_ACCELERATION * BRAKE_MULTIPLIER : HORIZONTAL_ACCELERATION;
+      if (this.velocity.x < max) {
+        this.velocity.x = Math.min(max, this.velocity.x + a * dt);
+      }
+    }
 
-    if (!input.left && !input.right) {
+    // 마찰은 "무입력 + 초과속이 아닐 때"만 — 벽 반동 초과속은 아래 감쇠 분기가 전담
+    // (리뷰 확정 major: 마찰이 초과속에도 걸려 반동 보너스가 33ms 만에 사라졌음)
+    if (!input.left && !input.right && Math.abs(this.velocity.x) <= max) {
       this.velocity.x *= Math.pow(HORIZONTAL_FRICTION, dt * 60);
     }
 
-    // 속도 제한 — 벽 반동으로 인한 초과 속도는 즉시 자르지 않고 서서히 감쇠
-    // (원조 공튀기기: 벽 반동 직후가 가장 멀리 나는 순간)
-    const max = this.maxHorizontalSpeed;
+    // 벽 반동 초과 속도: max를 향해 서서히 감쇠 (체공 한 번 동안 대부분 유지)
     if (this.velocity.x > max) {
       this.velocity.x = Math.max(max, this.velocity.x * Math.pow(OVERSPEED_DECAY, dt * 120));
     } else if (this.velocity.x < -max) {

@@ -8,6 +8,8 @@ import {
   WALL_KICK_SPEED_MULT,
   OVERSPEED_DECAY,
   BRAKE_MULTIPLIER,
+  LAUNCHER_SPEED_MULT,
+  BOMB_KNOCKBACK_MULT,
 } from '../../utils/constants';
 import type { GameInput } from '../../utils/types';
 
@@ -110,6 +112,27 @@ export class Ball {
   wallKick(dir: 1 | -1) {
     this.velocity.x = dir * this.maxHorizontalSpeed * WALL_KICK_SPEED_MULT;
     this.velocity.y = this.bounceVelocity;
+  }
+
+  /**
+   * 발사 패드 — 화살표 방향으로 수평 발사 + 풀 점프 (V2 기믹).
+   * 벽 반동(1.35배)보다 빠른 1.8배 초과속이며, 초과분은 OVERSPEED_DECAY로
+   * 잦아들고 반대 방향 입력의 2배 제동(BRAKE_MULTIPLIER)으로 '꺾어 멈추기'가 된다
+   * — 원작 BOUND 화살표 블록의 카운터 입력 문법.
+   */
+  launch(dir: 1 | -1) {
+    this.velocity.x = dir * this.maxHorizontalSpeed * LAUNCHER_SPEED_MULT;
+    this.velocity.y = this.bounceVelocity;
+  }
+
+  /**
+   * 폭발 넉백 — 폭심 반대 방향으로 강하게 밀려난다 (V2 기믹, 항상 동일 세기).
+   * 1.9배 초과속: 발사 패드보다 강해 가만히 있으면 위험 지대까지 밀린다.
+   * 살짝 띄워(상승 0.6배) 넉백이 눈에 읽히게 하되 풀 점프보다 낮게.
+   */
+  knockback(dir: 1 | -1) {
+    this.velocity.x = dir * this.maxHorizontalSpeed * BOMB_KNOCKBACK_MULT;
+    this.velocity.y = this.bounceVelocity * 0.6;
   }
 
   /** 보호막(백업 셀) 소모 시 위로 튕겨내기 — 위험 지대를 벗어나게 한다. */

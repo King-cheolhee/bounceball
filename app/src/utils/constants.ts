@@ -63,6 +63,27 @@ export const STAGE_INTRO_COOLDOWN_MS = 700;
 export const STAGE_CLEAR_OVERLAY_MS = 900;
 export const DEATH_FREEZE_MS = 450;
 
+// ===== V2 기믹 (PLAN_V2_기믹확장.md — 공정성 3원칙: 예고·동일 세기·후한 판정) =====
+/** 폭탄 점화 판정 반경 — 공이 이 거리 안에 들어오면 점화 */
+export const BOMB_TRIGGER_RADIUS = 36;
+/** 점화 → 폭발까지 (점멸 가속으로 예고) */
+export const BOMB_FUSE_MS = 1200;
+/** 폭발이 금 간 벽을 부수는 반경 (벽 사각형과 폭심의 최근접 거리 기준) */
+export const BOMB_BLAST_RADIUS = 170;
+/** 폭발 넉백이 공에 적용되는 반경 — 밖에 있으면 안전 */
+export const BOMB_KNOCKBACK_RADIUS = 320;
+/** 넉백 수평 속도 = 스테이지 최고속 × 배수. 벽 반동(1.35)보다 강해
+ *  반대 입력 2배 제동(BRAKE_MULTIPLIER)으로 '버티는' 조작이 필요하다 */
+export const BOMB_KNOCKBACK_MULT = 1.9;
+/** 발사 패드 수평 속도 = 스테이지 최고속 × 배수. 반대키로 꺾어 멈추기 가능 */
+export const LAUNCHER_SPEED_MULT = 1.8;
+/** 이동 가시 히트박스 = 시각 크기 × 이 비율 (후한 판정 — 조사된 공정성 원칙) */
+export const MOVING_SPIKE_HITBOX = 0.75;
+/** 이동 가시 시각 높이(px) */
+export const MOVING_SPIKE_HEIGHT = 28;
+/** 점멸 요소: 소멸 직전 경고 점멸·재등장 직전 점선 예고 시간(ms) 상한 */
+export const BLINK_WARN_MS = 400;
+
 export const INTERSTITIAL_AD_STAGES = [10, 15];
 
 // ===== 게임 주스 / 콤보 / 수집 (중독성 장치) =====

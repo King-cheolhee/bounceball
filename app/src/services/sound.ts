@@ -20,6 +20,10 @@ export type SfxName =
   | 'spike'         // 가시 "찌릭"
   | 'whoosh'        // 근소실패 "휙"
   | 'collect'       // 부품(◆) 수집 "삑"
+  | 'fuse'          // 폭탄 점화 — 가속되는 틱틱틱 (V2)
+  | 'blast'         // 폭탄 폭발 "쾅" — 금간 벽 파괴 + 넉백 (V2)
+  | 'launch'        // 발사 패드 "슈웅" — 수평 발사 (V2)
+  | 'brickBreak'    // 2회 벽돌 최종 파괴 "와르르" (V2, 1회째 균열은 fragile 재사용)
   | 'shield'        // 백업 셀 획득 "위잉"
   | 'shieldBreak'   // 백업 셀 소모 "퍼석"
   | 'checkpoint'    // 세이브 셀 (종소리형)
@@ -160,6 +164,30 @@ class SoundEngine {
         this.tone(ctx, g, 'square', 1319, 1319, 0.09, 0.22, now + 0.06);
         break;
       }
+      case 'fuse': {
+        // 점화 — 가속되는 4틱 (1.2초 퓨즈의 청각 예고. 공정성: 폭발은 반드시 예고)
+        const now = ctx.currentTime;
+        const at = [0, 0.32, 0.58, 0.78];
+        at.forEach((d, i) => {
+          this.tone(ctx, g, 'square', 1100 + i * 150, 1100 + i * 150, 0.04, 0.2, now + d);
+        });
+        break;
+      }
+      case 'blast':
+        // 폭발 — explosive보다 깊고 길게 (벽 파괴 + 넉백의 무게감)
+        this.tone(ctx, g, 'sawtooth', 110, 30, 0.32, 0.55);
+        this.noise(ctx, g, 0.3, 0.45, 'lowpass', 420);
+        break;
+      case 'launch':
+        // 수평 발사 — 상승 스윕 (벽 반동보다 길고 빠른 느낌)
+        this.tone(ctx, g, 'square', 240, 880, 0.18, 0.3);
+        this.noiseSweep(ctx, g, 0.12, 0.18, 1200, 5200);
+        break;
+      case 'brickBreak':
+        // 벽돌 최종 붕괴 — 균열(fragile)보다 낮고 묵직하게
+        this.noise(ctx, g, 0.14, 0.3, 'highpass', 700);
+        this.tone(ctx, g, 'triangle', 220, 70, 0.16, 0.3);
+        break;
       case 'shield':
         this.tone(ctx, g, 'sine', 660, 990, 0.14, 0.28);
         break;

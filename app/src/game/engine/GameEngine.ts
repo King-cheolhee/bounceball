@@ -18,6 +18,9 @@ import {
   DESIGN_HEIGHT,
   WALL_KICK_WINDOW_MS,
   WALL_HIT_MIN_SPEED,
+  BOMB_FUSE_MS,
+  BOMB_BLAST_RADIUS,
+  BOMB_KNOCKBACK_RADIUS,
 } from '../../utils/constants';
 import { sound } from '../../services/sound';
 import { haptic } from '../../services/haptic';
@@ -28,11 +31,14 @@ export type GamePhase = 'intro' | 'playing' | 'dying' | 'cleared';
 
 export interface GameEvents {
   onDeath: (reason: DeathReason) => void;
-  /** 클리어 시 — 이번 시도에서 모은 부품 수를 함께 전달 (클리어해야 적립) */
-  onStageClear: (stageId: number, partsCollected: number) => void;
+  /** 클리어 시 — 이번 시도에서 모은 부품 수 + 부품 전량 수집 여부 (완수 메타 기록용) */
+  onStageClear: (stageId: number, partsCollected: number, allParts: boolean) => void;
   /** 이번 시도의 부품 수 변동 — HUD 갱신용 */
   onPartsChange: (parts: number) => void;
 }
+
+/** 추격 벽(셧다운 웨이브)의 출발 x — 화면 밖 왼쪽 (공정성: 스폰 직후 여유 거리) */
+const WAVE_START_X = -260;
 
 export class GameEngine {
   private rafId: number | null = null;
@@ -43,6 +49,14 @@ export class GameEngine {
   private camera = new Camera();
   private stage: StageData | null = null;
   private brokenFloors = new Set<number>();
+  /** 2회 벽돌(brick) 중 1회 밟혀 균열된 인덱스 — 다음 착지에 brokenFloors로 넘어간다 */
+  private crackedBricks = new Set<number>();
+  /** 점화된 폭탄: 인덱스 → 점화 시각(게임 시계). BOMB_FUSE_MS 후 폭발 */
+  private bombIgnited = new Map<number, number>();
+  private bombExploded = new Set<number>();
+  /** 추격 벽(셧다운 웨이브) 현재 x — chase 없는 스테이지는 null */
+  private waveX: number | null = null;
+  private trailEnabled = true;
   private collectedItems = new Set<number>();
   private nearMissSeen = new Set<number>();
   private particles = new ParticleSystem();
@@ -101,6 +115,11 @@ export class GameEngine {
     this.skin = skin;
   }
 
+  /** 잔상 트레일 토글 (설정) — OFF면 콤보 잔상까지 모두 끈다 (멀미 민감 배려) */
+  setTrailEnabled(value: boolean) {
+    this.trailEnabled = value;
+  }
+
   resize(width: number, height: number) {
     this.dpr = window.devicePixelRatio || 1;
     this.viewportWidth = width;
@@ -132,6 +151,10 @@ export class GameEngine {
     this.camera.snapTo(stage.spawn.x, stage.spawn.y);
     this.pendingKick = null;
     this.brokenFloors.clear();
+    this.crackedBricks.clear();
+    this.bombIgnited.clear();
+    this.bombExploded.clear();
+    this.waveX = stage.chase ? WAVE_START_X : null;
     this.collectedItems.clear();
     this.nearMissSeen.clear();
     this.particles.clear();
@@ -251,6 +274,28 @@ export class GameEngine {
 
     this.ball.update(step, input);
 
+    // 추격 벽(셧다운 웨이브) — 게임 시계 기반 절대 위치라 일시정지에 안전.
+    // 인트로 + 유예(delayMs) 동안은 출발하지 않는다 (스폰 3초 무입력 생존 보장)
+    if (this.stage.chase && this.waveX !== null) {
+      const elapsed =
+        this.timeMs - this.introStart - STAGE_INTRO_COOLDOWN_MS - this.stage.chase.delayMs;
+      this.waveX = WAVE_START_X + (Math.max(0, elapsed) * this.stage.chase.speed) / 1000;
+      if (this.ball.position.x < this.waveX) {
+        // 소멸 벽에 잡힘 — 보호막 무효 (낙사와 같은 등급의 즉사)
+        this.triggerDeath('wave');
+        return;
+      }
+    }
+
+    // 점화된 폭탄의 퓨즈 소진 → 폭발 (넉백이 적용된 채 아래 충돌 검사로 이어진다)
+    if (this.bombIgnited.size > 0) {
+      for (const [idx, ignitedAt] of this.bombIgnited) {
+        if (this.timeMs - ignitedAt >= BOMB_FUSE_MS) {
+          this.explodeBomb(idx);
+        }
+      }
+    }
+
     // 벽 - 스테이지 좌우 경계 (벽 반동 점프 가능)
     // 일정 속도 이상으로 부딪힐 때만 '충돌' — 벽에 밀착해 누르고 있을 때
     // 효과음이 초당 120회 연타되고 반동 창이 무한해지던 버그 수정
@@ -291,6 +336,7 @@ export class GameEngine {
     }
 
     // 충돌 처리 (스윕 방식 — 고속 낙하 터널링 방지)
+    // stageMs: 스테이지 시작 기준 게임 시계 — 점멸·이동 가시의 결정적 상태 계산용
     const collision = detectCollisions(
       this.ball,
       this.stage.elements,
@@ -299,7 +345,19 @@ export class GameEngine {
       prevY,
       this.brokenFloors,
       this.collectedItems,
+      this.timeMs - this.introStart,
+      this.stage.bouncePeriod,
     );
+
+    // 폭탄 점화 — 이미 점화/폭발된 폭탄은 무시
+    for (const idx of collision.touchedBombs) {
+      if (this.bombIgnited.has(idx) || this.bombExploded.has(idx)) continue;
+      this.bombIgnited.set(idx, this.timeMs);
+      const el = this.stage.elements[idx];
+      sound.play('fuse');
+      haptic('soft');
+      this.particles.ring(el.x, el.y, 44, 280);
+    }
 
     // 부품(◆) 수집
     for (const idx of collision.collectedParts) {
@@ -353,6 +411,21 @@ export class GameEngine {
       this.handleLanding(collision.landedFloor);
     }
 
+    // 발사 패드 착지 — 화살표 방향 수평 발사 (꺾어 멈추기는 Ball의 제동이 처리)
+    if (collision.landedLauncher) {
+      this.pendingKick = null; // 발사가 반동 입력 창을 덮어쓰지 않게
+      const { el } = collision.landedLauncher;
+      const dir = el.dir ?? 1;
+      this.ball.launch(dir);
+      sound.play('launch');
+      haptic('medium');
+      const lx = this.ball.position.x;
+      const ly = this.ball.position.y + this.ball.radius;
+      this.particles.burst(lx, ly, { count: 6, speed: 200, size: 3.5, life: 0.4, gravity: 400, upBias: 0.3 });
+      this.particles.ring(lx, ly, 48, 320);
+      // 콤보는 유지·미적립 — 발사 패드는 퍼펙트 존이 없는 중립 발판
+    }
+
     // 근소실패(아슬아슬 회피) — 가시 1개당 시도 내 1회만 연출
     for (const idx of collision.nearMissSpikes) {
       if (this.nearMissSeen.has(idx)) continue;
@@ -376,7 +449,15 @@ export class GameEngine {
         count: 18, speed: 260, size: 5, life: 0.8, gravity: 500, upBias: 0.8,
       });
       this.particles.ring(this.ball.position.x, this.ball.position.y, 140, 320);
-      this.events.onStageClear(this.stage.id, this.runParts);
+      // 부품 전량 수집 여부 (완수 메타) — 개수 기준 (오버클럭 2배 적립과 무관)
+      let totalParts = 0;
+      let gotParts = 0;
+      for (let i = 0; i < this.stage.elements.length; i++) {
+        if (this.stage.elements[i].type !== 'part') continue;
+        totalParts++;
+        if (this.collectedItems.has(i)) gotParts++;
+      }
+      this.events.onStageClear(this.stage.id, this.runParts, totalParts > 0 && gotParts === totalParts);
     }
   }
 
@@ -423,6 +504,71 @@ export class GameEngine {
         count: 8, speed: 160, size: 4, life: 0.5, gravity: 800, upBias: 0.1,
       });
     }
+
+    // 2회 벽돌(V2): 1회째 균열(잔여 내구도 시각화 — 렌더러가 균열+점멸 표시), 2회째 붕괴
+    if (variant === 'brick' && !this.brokenFloors.has(index)) {
+      const w = el.width ?? 0;
+      if (!this.crackedBricks.has(index)) {
+        this.crackedBricks.add(index);
+        sound.play('fragile');
+        haptic('soft');
+        this.particles.burst(this.ball.position.x, el.y, {
+          count: 4, speed: 110, size: 3, life: 0.35, gravity: 700, upBias: 0.2,
+        });
+      } else {
+        this.brokenFloors.add(index);
+        sound.play('brickBreak');
+        haptic('medium');
+        this.particles.burst(el.x + w / 2, el.y, {
+          count: 12, speed: 190, size: 4.5, life: 0.55, gravity: 850, upBias: 0.15,
+        });
+      }
+    }
+  }
+
+  /**
+   * 폭탄 폭발 (V2) — 항상 동일한 순서·세기 (공정성):
+   * ① 반경 내 금 간 벽 전부 파괴 ② 반경 내 공이면 폭심 반대 방향 수평 넉백.
+   * 넉백 후 착지는 플레이어 책임 — 좌우 입력 제동으로 '버티는' 것이 이 기믹의 도전.
+   */
+  private explodeBomb(index: number) {
+    if (!this.stage) return;
+    this.bombIgnited.delete(index);
+    this.bombExploded.add(index);
+    const bomb = this.stage.elements[index];
+    sound.play('blast');
+    haptic('error');
+    this.camera.shake(8, 320);
+    this.particles.burst(bomb.x, bomb.y, {
+      count: 16, speed: 320, size: 5, life: 0.7, gravity: 600, upBias: 0.5,
+    });
+    this.particles.ring(bomb.x, bomb.y, BOMB_BLAST_RADIUS, 520);
+
+    // 금 간 벽 파괴 — 벽 사각형과 폭심의 최근접 거리 기준
+    for (let i = 0; i < this.stage.elements.length; i++) {
+      const w = this.stage.elements[i];
+      if (w.type !== 'cracked_wall' || this.brokenFloors.has(i)) continue;
+      const ww = w.width ?? 6;
+      const wh = w.height ?? 0;
+      const nearX = Math.max(w.x, Math.min(bomb.x, w.x + ww));
+      const nearY = Math.max(w.y, Math.min(bomb.y, w.y + wh));
+      const dx = nearX - bomb.x;
+      const dy = nearY - bomb.y;
+      if (dx * dx + dy * dy <= BOMB_BLAST_RADIUS * BOMB_BLAST_RADIUS) {
+        this.brokenFloors.add(i);
+        this.particles.burst(w.x + ww / 2, w.y + wh / 2, {
+          count: 10, speed: 220, size: 4, life: 0.6, gravity: 750, upBias: 0.3,
+        });
+      }
+    }
+
+    // 공 넉백 — 폭심 반대 방향 (반경 밖이면 안전)
+    const bdx = this.ball.position.x - bomb.x;
+    const bdy = this.ball.position.y - bomb.y;
+    if (bdx * bdx + bdy * bdy <= BOMB_KNOCKBACK_RADIUS * BOMB_KNOCKBACK_RADIUS) {
+      this.pendingKick = null; // 반동 입력 창이 넉백을 덮어쓰지 않게
+      this.ball.knockback(bdx >= 0 ? 1 : -1);
+    }
   }
 
   /** 백업 셀 소모 — 가시/폭발 1회 무효화 후 위험 반대 방향으로 탈출 + 짧은 무적 */
@@ -463,7 +609,7 @@ export class GameEngine {
     this.combo = 0;
     if (reason === 'spike' || reason === 'ceiling-spike') {
       sound.play('spike');
-    } else if (reason === 'explosive') {
+    } else if (reason === 'explosive' || reason === 'wave') {
       sound.play('explosive');
     } else {
       sound.play('gameover');
@@ -477,14 +623,16 @@ export class GameEngine {
   }
 
   private updateTrail() {
-    // 잔상 길이: 스킨별 기본 + 콤보 보너스. 기본 스킨은 3콤보부터 잔상이 생긴다.
-    const base = this.skin === 'dot' ? 0 : 8;
-    const comboBonus = this.combo >= 3 ? Math.min(6 + this.combo * 2, 18) : 0;
-    const maxLen = Math.min(base + comboBonus, 22);
-    if (maxLen === 0) {
+    // 잔상 트레일 토글(설정) — OFF면 콤보 잔상 포함 전부 끔 (멀미 민감 배려)
+    if (!this.trailEnabled) {
       if (this.trail.length > 0) this.trail = [];
       return;
     }
+    // 잔상 길이: 기본 상시 + 콤보 보너스. V2: 원작 BOUND의 포물선 잔상 오마주로
+    // 기본 스킨도 상시 잔상을 갖는다 (벽 반동 궤적 학습 보조 — 조사 P10).
+    const base = this.skin === 'dot' ? 10 : 8;
+    const comboBonus = this.combo >= 3 ? Math.min(6 + this.combo * 2, 18) : 0;
+    const maxLen = Math.min(base + comboBonus, 22);
     this.trail.push({ x: this.ball.position.x, y: this.ball.position.y });
     while (this.trail.length > maxLen) this.trail.shift();
   }
@@ -497,6 +645,11 @@ export class GameEngine {
         stage: this.stage,
         camera: this.camera,
         brokenFloors: this.brokenFloors,
+        crackedBricks: this.crackedBricks,
+        bombIgnited: this.bombIgnited,
+        bombExploded: this.bombExploded,
+        waveX: this.waveX,
+        stageMs: this.timeMs - this.introStart,
         collectedItems: this.collectedItems,
         flashAmount: this.flashAmount,
         goalReached: this.phase === 'cleared',

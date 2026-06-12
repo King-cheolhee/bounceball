@@ -1,0 +1,14 @@
+:root {
+  --color-bg: #000000;
+  --color-fg: #ffffff;
+  --color-fg-dim: rgba(255, 255, 255, 0.5);
+  --color-fg-faint: rgba(255, 255, 255, 0.15);
+
+  --font-display: 'Inter', 'Pretendard', system-ui, sans-serif;
+  --font-text: 'Pretendard', 'Inter', system-ui, sans-serif;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}

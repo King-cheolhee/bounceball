@@ -1,0 +1,97 @@
+@import './variables.css';
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background-color: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-text);
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+body {
+  position: fixed;
+  inset: 0;
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  outline: none;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--color-fg);
+  outline-offset: 2px;
+}
+
+canvas {
+  display: block;
+  touch-action: none;
+}
+
+.app-shell {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-top: var(--safe-top);
+  padding-right: var(--safe-right);
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+}
+
+.rotate-prompt {
+  position: fixed;
+  inset: 0;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  z-index: 9999;
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+}
+
+.rotate-prompt__icon {
+  width: 80px;
+  height: 80px;
+  border: 3px solid var(--color-fg);
+  border-radius: 12px;
+  position: relative;
+  animation: rotate-hint 2s ease-in-out infinite;
+}
+
+.rotate-prompt__icon::before {
+  content: '';
+  position: absolute;
+  inset: 14px;
+  border: 2px solid var(--color-fg);
+}
+
+@keyframes rotate-hint {
+  0%, 40% { transform: rotate(0deg); }
+  60%, 100% { transform: rotate(90deg); }
+}

@@ -1,0 +1,73 @@
+import { useEffect, useState } from 'react';
+import { Button } from './Button';
+import { Overlay } from './Overlay';
+import { AdType } from '../services/ads';
+
+interface Props {
+  type: AdType;
+  onClose: (rewarded: boolean) => void;
+}
+
+const INTERSTITIAL_SECONDS = 4;
+const REWARDED_SECONDS = 6;
+
+export function MockAdOverlay({ type, onClose }: Props) {
+  const totalSeconds = type === 'interstitial' ? INTERSTITIAL_SECONDS : REWARDED_SECONDS;
+  const [remaining, setRemaining] = useState(totalSeconds);
+  const [skippable, setSkippable] = useState(false);
+
+  useEffect(() => {
+    const start = Date.now();
+    const id = window.setInterval(() => {
+      const elapsed = (Date.now() - start) / 1000;
+      const next = Math.max(0, totalSeconds - elapsed);
+      setRemaining(next);
+      if (type === 'interstitial' && elapsed >= 2) setSkippable(true);
+      if (next === 0) {
+        clearInterval(id);
+        onClose(type === 'rewarded');
+      }
+    }, 100);
+    return () => clearInterval(id);
+  }, [totalSeconds, onClose, type]);
+
+  return (
+    <Overlay dim={0.92}>
+      <div
+        style={{
+          width: 'min(80vw, 480px)',
+          height: 'min(70vh, 280px)',
+          border: '2px dashed rgba(255,255,255,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontFamily: 'Inter, Pretendard, sans-serif',
+          flexDirection: 'column',
+          gap: 12,
+        }}
+      >
+        <div style={{ fontSize: 11, letterSpacing: '0.3em', opacity: 0.6 }}>MOCK AD · {type.toUpperCase()}</div>
+        <div style={{ fontSize: 28, fontWeight: 900 }}>{type === 'rewarded' ? '보상형 광고' : '전면 광고'}</div>
+        <div style={{ fontSize: 12, opacity: 0.5, maxWidth: 320, textAlign: 'center', lineHeight: 1.5 }}>
+          실제 출시 시 앱인토스 광고 SDK로 교체됩니다.
+          {type === 'rewarded' ? ' 끝까지 시청하면 목숨 +3.' : ''}
+        </div>
+        <div style={{ fontSize: 36, fontWeight: 900, fontVariantNumeric: 'tabular-nums', marginTop: 8 }}>
+          {Math.ceil(remaining)}s
+        </div>
+      </div>
+      <div style={{ marginTop: 24, display: 'flex', gap: 12 }}>
+        {type === 'interstitial' && (
+          <Button onClick={() => onClose(false)} variant={skippable ? 'secondary' : 'ghost'}>
+            {skippable ? '건너뛰기' : '...'}
+          </Button>
+        )}
+        {type === 'rewarded' && (
+          <Button onClick={() => onClose(false)} variant="ghost">
+            보상 포기하고 닫기
+          </Button>
+        )}
+      </div>
+    </Overlay>
+  );
+}

@@ -1,0 +1,30 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "IN=$(cat); PD=\"${CLAUDE_PROJECT_DIR//\\\\//}\"; printf '%s' \"$IN\" | grep -qE '\"file_path\":\"[^\"]*\\.(ts|tsx|js|jsx|html|css)\"' && mkdir -p \"$PD/.claude\" && touch \"$PD/.claude/.review-pending\" || true",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "IN=$(cat); PD=\"${CLAUDE_PROJECT_DIR//\\\\//}\"; M=\"$PD/.claude/.review-pending\"; if [ -f \"$M\" ]; then rm -f \"$M\"; printf '%s' \"$IN\" | grep -qE '\"stop_hook_active\"[[:space:]]*:[[:space:]]*true' || printf '%s' '{\"decision\":\"block\",\"reason\":\"코드 변경이 감지되었습니다. 종료 전에 적대적 코드 리뷰를 수행하라: (1) 이번 턴에 수정·생성한 코드를 비판적 시각으로 재검토하여 버그, 논리 오류, 엣지 케이스 누락, 타입 오류를 찾아라. (2) 가능하면 타입체크나 빌드(npx tsc --noEmit 등)를 실행해 실제 오류를 확인하라. (3) 오류 발견 시 디버깅하여 수정하고 재검증하라. (4) 리뷰 결과와 수정 내역을 사용자에게 한국어로 보고하라. 문제가 없으면 적대적 리뷰 통과로 보고하라.\"}'; fi",
+            "timeout": 15,
+            "statusMessage": "적대적 코드 리뷰 검사 중..."
+          }
+        ]
+      }
+    ]
+  }
+}

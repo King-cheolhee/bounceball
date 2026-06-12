@@ -60,6 +60,7 @@ const KEY_TOTAL_PLAYS = 'total_plays';
 const KEY_TOTAL_DEATHS = 'total_deaths';
 const KEY_SOUND = 'settings.sound';
 const KEY_HAPTIC = 'settings.haptic';
+const KEY_TRAIL = 'settings.trail';
 
 function toInt(value: string | null, fallback: number): number {
   if (value === null) return fallback;
@@ -179,22 +180,59 @@ export async function saveUnlocks(data: Partial<UnlockData>): Promise<void> {
   await Promise.all(ops);
 }
 
-export async function loadSettings(): Promise<{ sound: boolean; haptic: boolean }> {
-  const [sound, haptic] = await Promise.all([
+export async function loadSettings(): Promise<{ sound: boolean; haptic: boolean; trail: boolean }> {
+  const [sound, haptic, trail] = await Promise.all([
     Storage.getItem(KEY_SOUND),
     Storage.getItem(KEY_HAPTIC),
+    Storage.getItem(KEY_TRAIL),
   ]);
   return {
     sound: sound === null ? true : sound === 'true',
     haptic: haptic === null ? true : haptic === 'true',
+    // 잔상 트레일 (V2) — 기본 ON (원작 BOUND 시그니처). 멀미 민감 시 OFF
+    trail: trail === null ? true : trail === 'true',
   };
 }
 
-export async function saveSettings(data: { sound?: boolean; haptic?: boolean }): Promise<void> {
+export async function saveSettings(data: { sound?: boolean; haptic?: boolean; trail?: boolean }): Promise<void> {
   const ops: Promise<void>[] = [];
   if (data.sound !== undefined) ops.push(Storage.setItem(KEY_SOUND, String(data.sound)));
   if (data.haptic !== undefined) ops.push(Storage.setItem(KEY_HAPTIC, String(data.haptic)));
+  if (data.trail !== undefined) ops.push(Storage.setItem(KEY_TRAIL, String(data.trail)));
   await Promise.all(ops);
+}
+
+// ===== 완수 메타 (V2) — 스테이지별 기록: 부품 전량 수집 / 노데스 클리어 =====
+// 진행 초기화(resetProgress)에도 유지 — 해금과 같은 '성취' 데이터 (의도된 설계)
+const KEY_STAGE_RECORDS = 'stage_records';
+
+export interface StageRecord {
+  allParts: boolean;
+  noDeath: boolean;
+}
+
+export async function loadStageRecords(): Promise<Record<number, StageRecord>> {
+  const raw = await Storage.getItem(KEY_STAGE_RECORDS);
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') return parsed as Record<number, StageRecord>;
+  } catch {
+    // 손상된 데이터 — 기본값 유지
+  }
+  return {};
+}
+
+/** 기록은 상향만 — 한 번 달성한 allParts/noDeath는 다시 실패해도 유지된다. */
+export async function mergeStageRecord(stageId: number, record: StageRecord): Promise<Record<number, StageRecord>> {
+  const all = await loadStageRecords();
+  const prev = all[stageId];
+  all[stageId] = {
+    allParts: (prev?.allParts ?? false) || record.allParts,
+    noDeath: (prev?.noDeath ?? false) || record.noDeath,
+  };
+  await Storage.setItem(KEY_STAGE_RECORDS, JSON.stringify(all));
+  return all;
 }
 
 export { INITIAL_LIVES };

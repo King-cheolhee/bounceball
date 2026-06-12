@@ -11,9 +11,11 @@ interface Props {
   unlockMsg?: string | null;
   /** 이번 스테이지에서 적립한 부품 수 */
   partsCollected?: number;
+  /** 전 스테이지 PERFECT(부품 전량+노데스) — 엔딩에 칭호 한 줄 추가 (V2) */
+  allPerfect?: boolean;
 }
 
-export function StageClearOverlay({ stage, onContinue, totalCleared, unlockMsg, partsCollected }: Props) {
+export function StageClearOverlay({ stage, onContinue, totalCleared, unlockMsg, partsCollected, allPerfect }: Props) {
   // 부모 리렌더로 onContinue 참조가 바뀌어도 타이머가 리셋되지 않도록 ref 경유
   const onContinueRef = useRef(onContinue);
   onContinueRef.current = onContinue;
@@ -43,6 +45,21 @@ export function StageClearOverlay({ stage, onContinue, totalCleared, unlockMsg, 
             </div>
             <div style={{ fontSize: 14, marginTop: 14, opacity: 0.7 }}>{STORY.allClearBody}</div>
             <BootSegments />
+            {allPerfect && (
+              // 전 스테이지 PERFECT — "you are crazy bound player!" 전통의 오마주 (V2)
+              <div
+                style={{
+                  fontSize: 15,
+                  marginTop: 18,
+                  letterSpacing: '0.3em',
+                  padding: '8px 20px',
+                  border: '2px solid #fff',
+                  display: 'inline-block',
+                }}
+              >
+                {STORY.perfectTitle}
+              </div>
+            )}
             {/* 원작 BOUND의 "osimai(끝)" 오마주 — 짧고 건조하게 */}
             <div style={{ fontSize: 13, marginTop: 20, opacity: 0.5, letterSpacing: '0.4em' }}>
               {STORY.allClearTail}

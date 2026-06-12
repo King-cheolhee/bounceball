@@ -20,6 +20,7 @@ export function MainMenuPage({ onStart, onSettings }: Props) {
   const currentStage = useGameStore((s) => s.currentStage);
   const checkpointStage = useGameStore((s) => s.checkpointStage);
   const maxClearedStage = useGameStore((s) => s.maxClearedStage);
+  const stageRecords = useGameStore((s) => s.stageRecords);
   const parts = useUnlockStore((s) => s.parts);
   const selectedSkin = useUnlockStore((s) => s.selectedSkin);
   const allCleared = maxClearedStage >= TOTAL_STAGES;
@@ -78,7 +79,8 @@ export function MainMenuPage({ onStart, onSettings }: Props) {
           </div>
         </div>
 
-        {/* LCD 세그먼트 진행도 — 깬 만큼 화면이 되살아난다 */}
+        {/* LCD 세그먼트 진행도 — 깬 만큼 화면이 되살아난다.
+            V2 완수 메타 3단 표기: 점등=클리어 / 안의 ◆=부품 전량 / 점멸 테두리=PERFECT(전량+노데스) */}
         <div style={{ display: 'flex', gap: 14 }}>
           {CHAPTERS.map((ch) => (
             <div key={ch.id} style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'center' }}>
@@ -86,6 +88,9 @@ export function MainMenuPage({ onStart, onSettings }: Props) {
                 {Array.from({ length: ch.to - ch.from + 1 }).map((_, i) => {
                   const stageNo = ch.from + i;
                   const lit = stageNo <= maxClearedStage;
+                  const rec = stageRecords[stageNo];
+                  const allParts = lit && !!rec?.allParts;
+                  const perfect = allParts && !!rec?.noDeath;
                   return (
                     <div
                       key={stageNo}
@@ -94,9 +99,26 @@ export function MainMenuPage({ onStart, onSettings }: Props) {
                         height: 20,
                         background: lit ? '#fff' : 'transparent',
                         border: '1px solid rgba(255,255,255,0.45)',
+                        position: 'relative',
+                        animation: perfect ? 'seg-perfect 1.6s ease-in-out infinite' : undefined,
                       }}
-                      aria-label={`스테이지 ${stageNo} ${lit ? '복구됨' : '미복구'}`}
-                    />
+                      aria-label={`스테이지 ${stageNo} ${perfect ? 'PERFECT' : allParts ? '부품 전량' : lit ? '복구됨' : '미복구'}`}
+                    >
+                      {allParts && (
+                        <span
+                          aria-hidden
+                          style={{
+                            position: 'absolute',
+                            left: '50%',
+                            top: '50%',
+                            width: 6,
+                            height: 6,
+                            background: '#000',
+                            transform: 'translate(-50%, -50%) rotate(45deg)',
+                          }}
+                        />
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -105,7 +127,18 @@ export function MainMenuPage({ onStart, onSettings }: Props) {
               </div>
             </div>
           ))}
+          <style>{`
+            @keyframes seg-perfect {
+              0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+              50% { box-shadow: 0 0 0 2.5px rgba(255,255,255,0.85); }
+            }
+          `}</style>
         </div>
+        {maxClearedStage > 0 && (
+          <div style={{ fontSize: 9, opacity: 0.4, letterSpacing: '0.1em' }}>
+            ■ 클리어 · ■<span style={{ fontSize: 8 }}>◆</span> 부품 전량 · 점멸 = PERFECT(전량+노데스)
+          </div>
+        )}
 
         <Button onClick={onStart} size="lg" style={{ minWidth: 240 }}>
           {allCleared ? '다시 도전하기' : currentStage === 1 ? '게임 시작' : '이어서 플레이'}

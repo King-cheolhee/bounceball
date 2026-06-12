@@ -7,6 +7,9 @@ import {
   incrementDeaths,
   incrementPlays,
   resetProgress,
+  loadStageRecords,
+  mergeStageRecord,
+  type StageRecord,
 } from '../services/storage';
 import { INITIAL_LIVES, TOTAL_STAGES, CHECKPOINTS, INTERSTITIAL_AD_STAGES } from '../utils/constants';
 import { getUnlockMessage } from '../utils/story';
@@ -27,11 +30,17 @@ interface GameState {
   pendingNextStage: number | null;
   /** 클리어 오버레이에 표시할 해금 메시지 (사운드 칩 채널 복구 등) */
   lastUnlockMsg: string | null;
+  /** 현재 스테이지 진입 이후 사망 횟수 — 노데스(완수 메타) 판정용 (V2) */
+  stageDeaths: number;
+  /** 스테이지별 완수 기록 (부품 전량 / 노데스) — 진행 초기화에도 유지 (V2) */
+  stageRecords: Record<number, StageRecord>;
 
   hydrate: () => Promise<void>;
   goToScreen: (screen: Screen) => void;
   startFromProgress: () => Promise<void>;
   onDeath: () => Promise<void>;
+  /** 클리어 직후 완수 기록 병합 — onStageCleared보다 먼저 호출할 것 (stageDeaths 사용) */
+  recordStageResult: (stageId: number, allParts: boolean) => Promise<void>;
   onStageCleared: () => Promise<void>;
   consumeAd: (rewarded: boolean) => void;
   reviveWithAd: () => void;
@@ -55,13 +64,16 @@ export const useGameStore = create<GameState>((set, get) => ({
   showAd: null,
   pendingNextStage: null,
   lastUnlockMsg: null,
+  stageDeaths: 0,
+  stageRecords: {},
 
   async hydrate() {
-    const data = await loadProgress();
+    const [data, records] = await Promise.all([loadProgress(), loadStageRecords()]);
     set({
       currentStage: Math.min(Math.max(data.currentStage, 1), TOTAL_STAGES),
       checkpointStage: Math.min(Math.max(data.checkpointStage, 1), TOTAL_STAGES),
       maxClearedStage: data.maxClearedStage,
+      stageRecords: records,
       hydrated: true,
     });
   },
@@ -81,19 +93,26 @@ export const useGameStore = create<GameState>((set, get) => ({
       showAd: null,
       pendingNextStage: null,
       lastUnlockMsg: null,
+      stageDeaths: 0, // 새 진입 — 노데스 카운터 리셋
     });
     // currentStage 그대로 사용
   },
 
   async onDeath() {
     await incrementDeaths();
-    const { lives } = get();
+    const { lives, stageDeaths } = get();
     const nextLives = lives - 1;
     if (nextLives > 0) {
-      set({ lives: nextLives });
+      set({ lives: nextLives, stageDeaths: stageDeaths + 1 });
     } else {
-      set({ lives: 0, isGameOver: true });
+      set({ lives: 0, isGameOver: true, stageDeaths: stageDeaths + 1 });
     }
+  },
+
+  async recordStageResult(stageId: number, allParts: boolean) {
+    const noDeath = get().stageDeaths === 0;
+    const records = await mergeStageRecord(stageId, { allParts, noDeath });
+    set({ stageRecords: records });
   },
 
   async onStageCleared() {
@@ -141,6 +160,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           lives: INITIAL_LIVES,
           showAd: null,
           lastUnlockMsg: null,
+          stageDeaths: 0,
         });
       } else {
         set({ showAd: null });
@@ -176,6 +196,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       isPaused: false,
       showAd: null,
       pendingNextStage: null,
+      stageDeaths: 0,
     });
   },
 
@@ -217,6 +238,7 @@ export async function advanceAfterClear() {
       currentStage: 1,
       checkpointStage: 1,
       lastUnlockMsg: null,
+      stageDeaths: 0,
     });
     return;
   }
@@ -231,6 +253,7 @@ export async function advanceAfterClear() {
       isStageClearing: false,
       lives: INITIAL_LIVES,
       lastUnlockMsg: null,
+      stageDeaths: 0,
     });
     await saveProgress({ currentStage: next });
   }

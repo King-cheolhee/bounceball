@@ -3,6 +3,7 @@ import { GameEngine } from '../game/engine/GameEngine';
 import { TOTAL_STAGES, STAGE_CLEAR_OVERLAY_MS } from '../utils/constants';
 import { advanceAfterClear, useGameStore } from '../stores/gameStore';
 import { useUnlockStore } from '../stores/unlockStore';
+import { useSettingsStore } from '../stores/settingsStore';
 import { useViewportSize } from '../hooks/useViewportSize';
 import { useVisibilityPause } from '../hooks/useVisibilityPause';
 import { HudHearts } from '../components/HudHearts';
@@ -39,6 +40,8 @@ export function GamePlayPage({ onExit }: Props) {
   const lastUnlockMsg = useGameStore((s) => s.lastUnlockMsg);
 
   const onDeath = useGameStore((s) => s.onDeath);
+  const recordStageResult = useGameStore((s) => s.recordStageResult);
+  const stageRecords = useGameStore((s) => s.stageRecords);
   const onStageCleared = useGameStore((s) => s.onStageCleared);
   const retryStage = useGameStore((s) => s.retryStage);
   const giveUpToCheckpoint = useGameStore((s) => s.giveUpToCheckpoint);
@@ -49,6 +52,7 @@ export function GamePlayPage({ onExit }: Props) {
 
   const selectedSkin = useUnlockStore((s) => s.selectedSkin);
   const addParts = useUnlockStore((s) => s.addParts);
+  const trailOn = useSettingsStore((s) => s.trail);
 
   const [allCleared, setAllCleared] = useState(false);
   const [runParts, setRunParts] = useState(0);
@@ -70,9 +74,11 @@ export function GamePlayPage({ onExit }: Props) {
           engine.loadStage(state.currentStage);
         }
       },
-      onStageClear: async (stageId, partsCollected) => {
+      onStageClear: async (stageId, partsCollected, allParts) => {
         // 부품은 클리어해야 적립 (죽으면 그 시도분 소멸 — 재도전 동기)
         await addParts(partsCollected);
+        // 완수 기록(부품 전량/노데스)은 onStageCleared 전에 — stageDeaths 사용 (V2)
+        await recordStageResult(stageId, allParts);
         await onStageCleared();
         if (stageId >= TOTAL_STAGES) {
           setAllCleared(true);
@@ -85,6 +91,7 @@ export function GamePlayPage({ onExit }: Props) {
     });
     engineRef.current = engine;
     engine.setSkin(useUnlockStore.getState().selectedSkin);
+    engine.setTrailEnabled(useSettingsStore.getState().trail);
     engine.attach(touchTarget);
     engine.resize(viewport.width, viewport.height);
     engine.loadStage(useGameStore.getState().currentStage);
@@ -113,6 +120,11 @@ export function GamePlayPage({ onExit }: Props) {
   useEffect(() => {
     engineRef.current?.setSkin(selectedSkin);
   }, [selectedSkin]);
+
+  // 잔상 트레일 설정 반영 (V2)
+  useEffect(() => {
+    engineRef.current?.setTrailEnabled(trailOn);
+  }, [trailOn]);
 
   // BGM — 해금된 사운드 칩 채널 수만큼 적층, 템포는 스테이지 따라 상승.
   // 일시정지/광고/게임오버 중에는 정지 — 스케줄러가 suspend된 컨텍스트를
@@ -302,6 +314,12 @@ export function GamePlayPage({ onExit }: Props) {
             totalCleared={allCleared}
             unlockMsg={lastUnlockMsg}
             partsCollected={runParts}
+            allPerfect={
+              // 전 스테이지 PERFECT(부품 전량+노데스) — 엔딩 칭호 (V2)
+              Array.from({ length: TOTAL_STAGES }, (_, i) => stageRecords[i + 1]).every(
+                (r) => r?.allParts && r?.noDeath,
+              )
+            }
             onContinue={() => {
               if (allCleared) {
                 setAllCleared(false);

@@ -11,8 +11,10 @@ interface Props {
 export function SettingsPage({ onBack }: Props) {
   const soundOn = useSettingsStore((s) => s.sound);
   const hapticOn = useSettingsStore((s) => s.haptic);
+  const trailOn = useSettingsStore((s) => s.trail);
   const setSound = useSettingsStore((s) => s.setSound);
   const setHaptic = useSettingsStore((s) => s.setHaptic);
+  const setTrail = useSettingsStore((s) => s.setTrail);
 
   const parts = useUnlockStore((s) => s.parts);
   const unlockedSkins = useUnlockStore((s) => s.unlockedSkins);
@@ -51,6 +53,12 @@ export function SettingsPage({ onBack }: Props) {
           desc="기기 진동으로 충돌 피드백"
           enabled={hapticOn}
           onToggle={() => setHaptic(!hapticOn)}
+        />
+        <Row
+          label="잔상 트레일"
+          desc="공의 포물선 궤적 잔상 (원작 오마주). 화면 움직임이 어지러우면 끄세요"
+          enabled={trailOn}
+          onToggle={() => setTrail(!trailOn)}
         />
         <div style={{ fontSize: 11, opacity: 0.4, lineHeight: 1.5 }}>
           ⓘ iPhone에서 소리가 나지 않으면 측면 무음 스위치를 확인하세요.

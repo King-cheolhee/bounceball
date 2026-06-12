@@ -25,6 +25,9 @@ export const STORY = {
   allClearBody: '소원은 이루어졌다 — 전원이 돌아왔다',
   /** 원작 BOUND의 "osimai(끝)" 오마주 — 짧고 건조한 마침표 */
   allClearTail: '끝',
+  /** 완수 메타 칭호 (V2) — 전 스테이지 PERFECT(부품 전량+노데스) 시 엔딩에 추가.
+   *  원작 CRAZY BOUND "you are crazy bound player!" 전통의 오마주 */
+  perfectTitle: 'YOU ARE A TRUE PIXEL.',
   partName: '부품',
   shieldName: '백업 셀',
 } as const;

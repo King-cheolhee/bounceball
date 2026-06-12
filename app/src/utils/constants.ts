@@ -44,8 +44,20 @@ export const BRAKE_MULTIPLIER = 2;
  *  벽에 밀착해 누르고 있을 때 매 스텝 연타되는 것 방지 */
 export const WALL_HIT_MIN_SPEED = 30;
 
-export const CAMERA_FOLLOW_X_OFFSET = 0.35;
-export const CAMERA_FOLLOW_LERP = 0.12;
+// ===== 카메라 (멀미 방지 — 데드존/카메라 윈도우 방식, V2에서 추적식에서 교체) =====
+/** 공이 화면 중앙 기준 이 비율 안에 있으면 카메라 정지. 벗어난 만큼만 따라간다.
+ *  세로 ±34% = ±245px 밴드 — 점프 호 240px보다 넓어서, 스폰 시점(snapTo)이 호의
+ *  어느 지점이든 평지 바운스 중에는 카메라가 위아래로 전혀 움직이지 않는다.
+ *  (±30%=216px로는 호가 24px 삐져나와 시작 후 몇 초간 카메라가 위로 기어 올라감 — 시뮬레이션으로 확인) */
+export const CAMERA_DEADZONE_X = 0.25;
+export const CAMERA_DEADZONE_Y = 0.34;
+/** 데드존 이탈 시 추적 속도 (지수 lerp, 60fps 기준) — 기존 0.12에서 하향.
+ *  세로는 더 느리게: 수직 화면 이동이 멀미의 주원인. */
+export const CAMERA_LERP_X = 0.1;
+export const CAMERA_LERP_Y = 0.07;
+/** 하드 가드: 공이 화면 가장자리 이 비율 안쪽으로 들어오면 카메라를 즉시 보정.
+ *  자유 낙하(S13)·샤프트 등반처럼 lerp가 못 따라가는 고속 이동에서도 공이 화면 밖으로 안 나감. */
+export const CAMERA_HARD_EDGE = 0.08;
 
 export const STAGE_INTRO_COOLDOWN_MS = 700;
 export const STAGE_CLEAR_OVERLAY_MS = 900;

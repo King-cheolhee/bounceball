@@ -1,4 +1,11 @@
-import { CAMERA_FOLLOW_LERP, CAMERA_FOLLOW_X_OFFSET, VIEWPORT_HEIGHT } from '../../utils/constants';
+import {
+  CAMERA_DEADZONE_X,
+  CAMERA_DEADZONE_Y,
+  CAMERA_HARD_EDGE,
+  CAMERA_LERP_X,
+  CAMERA_LERP_Y,
+  VIEWPORT_HEIGHT,
+} from '../../utils/constants';
 
 export class Camera {
   x = 0;
@@ -30,18 +37,54 @@ export class Camera {
   }
 
   snapTo(targetX: number, targetY = 0) {
-    this.x = this.clampX(targetX - this.viewportWidth * CAMERA_FOLLOW_X_OFFSET);
+    this.x = this.clampX(targetX - this.viewportWidth * 0.5);
     this.y = this.clampY(targetY - this.viewportHeight * 0.5);
   }
 
-  /** dt 보정 지수 추적 — 프레임레이트가 달라도 따라오는 속도가 동일.
-   *  세로 스크롤 맵(stage.height > 화면)을 위해 y도 함께 따라간다. */
+  /** 데드존(카메라 윈도우) 추적 — 멀미 방지 (V2에서 중앙 고정 추적식에서 교체).
+   *  공이 화면 중앙의 데드존 안에 있으면 카메라 정지. 벗어나면 공이 데드존
+   *  가장자리로 "돌아오는 위치까지만" 부드럽게 이동한다 (중앙 복귀 없음 — 이동 최소화).
+   *  지수 lerp는 dt 보정 — 프레임레이트가 달라도 따라오는 속도가 동일.
+   *  세로 스크롤 맵(stage.height > 화면)을 위해 y도 같은 방식으로 따라간다. */
   follow(targetX: number, targetY: number, dt = 1 / 60) {
-    const factor = 1 - Math.pow(1 - CAMERA_FOLLOW_LERP, dt * 60);
-    const desiredX = this.clampX(targetX - this.viewportWidth * CAMERA_FOLLOW_X_OFFSET);
-    this.x += (desiredX - this.x) * factor;
-    const desiredY = this.clampY(targetY - this.viewportHeight * 0.5);
-    this.y += (desiredY - this.y) * factor;
+    const fx = 1 - Math.pow(1 - CAMERA_LERP_X, dt * 60);
+    const fy = 1 - Math.pow(1 - CAMERA_LERP_Y, dt * 60);
+
+    // 가로 데드존: 중앙 ±CAMERA_DEADZONE_X
+    const halfW = this.viewportWidth * 0.5;
+    const dzX = this.viewportWidth * CAMERA_DEADZONE_X;
+    const centerX = this.x + halfW;
+    if (targetX < centerX - dzX) {
+      this.x += (this.clampX(targetX + dzX - halfW) - this.x) * fx;
+    } else if (targetX > centerX + dzX) {
+      this.x += (this.clampX(targetX - dzX - halfW) - this.x) * fx;
+    }
+
+    // 세로 데드존: 중앙 ±CAMERA_DEADZONE_Y — 점프 호(240px)가 밴드(432px)에 통째로
+    // 들어가므로 평지 바운스 중에는 카메라가 위아래로 움직이지 않는다.
+    const halfH = this.viewportHeight * 0.5;
+    const dzY = this.viewportHeight * CAMERA_DEADZONE_Y;
+    const centerY = this.y + halfH;
+    if (targetY < centerY - dzY) {
+      this.y += (this.clampY(targetY + dzY - halfH) - this.y) * fy;
+    } else if (targetY > centerY + dzY) {
+      this.y += (this.clampY(targetY - dzY - halfH) - this.y) * fy;
+    }
+
+    // 하드 가드: 고속 낙하·샤프트 등반에서 lerp가 뒤처져도 공이 화면 밖으로 못 나감.
+    // 공이 가장자리 CAMERA_HARD_EDGE 비율 안쪽에 들어오면 그 경계선에 맞춰 즉시 보정.
+    const edgeX = this.viewportWidth * CAMERA_HARD_EDGE;
+    if (targetX < this.x + edgeX) {
+      this.x = this.clampX(targetX - edgeX);
+    } else if (targetX > this.x + this.viewportWidth - edgeX) {
+      this.x = this.clampX(targetX - this.viewportWidth + edgeX);
+    }
+    const edgeY = this.viewportHeight * CAMERA_HARD_EDGE;
+    if (targetY < this.y + edgeY) {
+      this.y = this.clampY(targetY - edgeY);
+    } else if (targetY > this.y + this.viewportHeight - edgeY) {
+      this.y = this.clampY(targetY - this.viewportHeight + edgeY);
+    }
   }
 
   /** 짧은 화면 흔들림. amp=진폭(px), durMs=지속시간. 감쇠 이징. */

@@ -4,3 +4,5 @@ dist/
 .env
 .env.*
 .claude/.review-pending
+.claude/.review-pending
+**/.claude/.review-pending

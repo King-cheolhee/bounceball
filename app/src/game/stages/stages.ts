@@ -29,6 +29,11 @@ function floorAt(x: number, y: number, w: number, variant: FloorVariant = 'norma
 function floor(x: number, w: number, variant: FloorVariant = 'normal'): StageElement {
   return floorAt(x, G, w, variant);
 }
+/** 정사각형 벽돌 블록 — 1회째 균열, 2회째 붕괴. 대각선 상승 계단용.
+ *  height로 정사각형 렌더(렌더러), 충돌은 기존 floor처럼 윗면 y만 사용. */
+function brickBlock(x: number, y: number, size = 80): StageElement {
+  return { type: 'floor', x, y, width: size, height: size, variant: 'brick' };
+}
 /** 점멸 발판 — 반주기 = 바운스 주기 × mult. phase(0~1)로 엇박 배치 */
 function blinkFloorAt(x: number, y: number, w: number, mult = 2, phase = 0): StageElement {
   return { type: 'floor', x, y, width: w, blinkPeriodMult: mult, ...(phase ? { blinkPhase: phase } : {}) };
@@ -378,7 +383,9 @@ const STAGES: StageData[] = [
   ], { height: 1080, spawn: { x: 100, y: 780 }, isCheckpointEnd: true }),
 
   // ============== CHAPTER 4: CPU 코어 (16-20) ==============
-  stage(16, '오버클럭 입문', 3000, exitRight(3000), [
+  // V2-2: 평지(이동 가시 도입) → 정사각형 벽돌 대각선 상승으로 우상단 탈출 (사용자 요청 맵).
+  //   각 벽돌은 한 번만 밟아야 안전 — 머뭇대 같은 칸을 두 번 밟으면 붕괴→추락. S12 하강과 짝.
+  stage(16, '오버클럭 입문', 3600, { x: 3340, y: 240, width: 150, height: 95 }, [
     floor(0, 300),
     floor(330, 100, 'fragile'),
     floor(430, 100, 'explosive'),
@@ -395,14 +402,20 @@ const STAGES: StageData[] = [
     floor(1760, 100, 'fragile'),
     floor(1860, 100, 'explosive'),
     floor(1960, 100, 'fragile'),
-    floor(2060, 940),
+    floor(2060, 240), // 진입 착지 지면 — 여기서 벽돌 계단으로 전환
     spike(700),  // 680→700: 좌측 안전 착지폭 확보 (퍼펙트존 최소폭 이상)
     spike(1710), // 1750→1710: fragile 이음새에 걸쳐 붕괴 후 공중 부유하던 문제 수정
     // V2: 이동 가시 첫 등장 — 단단한 발판 위(기다릴 수 있는 안전한 맥락), 경로 점선 표시
     movingSpike(1240, 350, 150),
     movingSpike(2150, 340, 160, 4, 0.5),
-    part(200), part(700, 380), part(900, 430), part(1250), part(1710, 380), part(2300),
-  ], { hint: '왕복하는 침 — 박자를 읽어라' }),
+    // 정사각형 벽돌 대각선 상승 계단 (Δx≈298 = 한 바운스 수평 도달, Δy 80) — stair-sim 검증
+    brickBlock(2454, 510),
+    brickBlock(2752, 430),
+    brickBlock(3050, 350),
+    brickBlock(3348, 270),
+    part(200), part(700, 380), part(900, 430), part(1250), part(1710, 380),
+    part(2658, 300), part(2956, 220), part(3254, 140), // 계단 호 정점 부근 보상
+  ], { hint: '벽돌을 밟고 올라가라 — 한 번씩만' }),
 
   stage(17, '교차 버스', 3200, exitRight(3200), [
     floor(0, 350),

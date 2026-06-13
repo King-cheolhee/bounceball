@@ -400,7 +400,7 @@ export class Renderer {
   /** 2회 벽돌 (V2) — 잔여 내구도 시각화: 온전=벽돌 무늬 / 균열=금 간 무늬 + 미세 점멸 */
   private drawBrick(el: StageElement, w: number, cracked: boolean, t: number) {
     const ctx = this.ctx;
-    const h = 12; // 일반 바닥(6px)보다 두툼한 벽돌 덩어리
+    const h = el.height ?? 12; // 두툼한 벽돌(기본 12). height 지정 시 정사각형 블록(대각선 상승 계단용)
     // 균열 상태: 1.0초마다 90ms 윤곽선만 — "한 번 더 밟으면 무너진다"
     if (cracked && t % 1000 < 90) {
       ctx.strokeStyle = FG;

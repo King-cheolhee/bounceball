@@ -385,7 +385,7 @@ const STAGES: StageData[] = [
   // ============== CHAPTER 4: CPU 코어 (16-20) ==============
   // V2-2: 평지(이동 가시 도입) → 정사각형 벽돌 대각선 상승으로 우상단 탈출 (사용자 요청 맵).
   //   각 벽돌은 한 번만 밟아야 안전 — 머뭇대 같은 칸을 두 번 밟으면 붕괴→추락. S12 하강과 짝.
-  stage(16, '오버클럭 입문', 3600, { x: 3340, y: 240, width: 150, height: 95 }, [
+  stage(16, '오버클럭 입문', 3700, { x: 3340, y: 230, width: 260, height: 100 }, [
     floor(0, 300),
     floor(330, 100, 'fragile'),
     floor(430, 100, 'explosive'),
@@ -402,19 +402,21 @@ const STAGES: StageData[] = [
     floor(1760, 100, 'fragile'),
     floor(1860, 100, 'explosive'),
     floor(1960, 100, 'fragile'),
-    floor(2060, 240), // 진입 착지 지면 — 여기서 벽돌 계단으로 전환
+    floor(2060, 320), // 진입 착지 지면 — 벽돌 계단에 연속으로 이어짐
     spike(700),  // 680→700: 좌측 안전 착지폭 확보 (퍼펙트존 최소폭 이상)
     spike(1710), // 1750→1710: fragile 이음새에 걸쳐 붕괴 후 공중 부유하던 문제 수정
     // V2: 이동 가시 첫 등장 — 단단한 발판 위(기다릴 수 있는 안전한 맥락), 경로 점선 표시
     movingSpike(1240, 350, 150),
     movingSpike(2150, 340, 160, 4, 0.5),
-    // 정사각형 벽돌 대각선 상승 계단 (Δx≈298 = 한 바운스 수평 도달, Δy 80) — stair-sim 검증
-    brickBlock(2454, 510),
-    brickBlock(2752, 430),
-    brickBlock(3050, 350),
-    brickBlock(3348, 270),
+    // 정사각형 벽돌 대각선 상승 — 한 단을 벽돌 여러 개로 넓혀(틈 없는 연속 계단) 진입 위치
+    // 변동을 흡수한다. 각 단 Δy80, 단끼리 가로로 이어짐. 한 칸당 한 번만 밟기.
+    // (stair-sim 진입점·속도 5케이스 검증 — 좁은 단일 벽돌은 진입 민감성으로 클리어 불가였음)
+    brickBlock(2380, 510), brickBlock(2460, 510), brickBlock(2540, 510), brickBlock(2620, 510),
+    brickBlock(2700, 430), brickBlock(2780, 430), brickBlock(2860, 430), brickBlock(2940, 430),
+    brickBlock(3020, 350), brickBlock(3100, 350), brickBlock(3180, 350), brickBlock(3260, 350),
+    brickBlock(3340, 270), brickBlock(3420, 270), brickBlock(3500, 270),
     part(200), part(700, 380), part(900, 430), part(1250), part(1710, 380),
-    part(2658, 300), part(2956, 220), part(3254, 140), // 계단 호 정점 부근 보상
+    part(2820, 300), part(3140, 220), part(3460, 140), // 계단 호 정점 부근 보상
   ], { hint: '벽돌을 밟고 올라가라 — 한 번씩만' }),
 
   stage(17, '교차 버스', 3200, exitRight(3200), [

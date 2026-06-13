@@ -13,13 +13,13 @@ import {
 } from '../../utils/constants';
 import type { GameInput } from '../../utils/types';
 
-/** 10라운드 이후 속도·템포 증가 곡선 완만화 (사용자 피드백: 후반 과속).
- *  10까지는 그대로, 이후는 진행도를 LATE_SLOWDOWN 비율로 압축한다.
- *  effective(10)=10이라 S10 경계에 불연속(속도 급변)이 없다.
- *  ⚠️ 이 값을 바꾸면 .tmp/climb-sim.cjs·gimmick-sim.cjs의 eff()도 동일하게 맞출 것. */
-const LATE_SLOWDOWN = 0.5; // 작을수록 후반이 더 완만 — 실플레이로 튜닝
+/** S11~S20을 모두 같은 속도로 평탄화 — 후반 과속 해소 (사용자 요청).
+ *  S11~20은 현재 S11(유효 스테이지 10.5 → 주기 0.65초, 최고속 519px/s)로 통일한다.
+ *  S1~S10은 원래대로. (S10 유효=10, S11+ 유효=10.5라 S10→S11 경계도 거의 연속)
+ *  ⚠️ 이 값을 바꾸면 .tmp의 climb-sim·gimmick-sim·validate2·stair-sim의 eff()도 동일하게 맞출 것. */
+const LATE_FIXED_STAGE = 10.5; // S11~20 공통 유효 스테이지 (= 현재 S11). 더 느리게: 값을 낮춤
 function effectiveStage(stage: number): number {
-  return stage <= 10 ? stage : 10 + (stage - 10) * LATE_SLOWDOWN;
+  return stage <= 10 ? stage : LATE_FIXED_STAGE;
 }
 
 /** 스테이지 N의 바운스 주기 (초). Stage 1 → 0.9초(시작 템포 +10%), Stage 20 → (완만화 후) ~0.53초. */

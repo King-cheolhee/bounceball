@@ -18,6 +18,7 @@ export function App() {
   const hydrate = useGameStore((s) => s.hydrate);
   const goToScreen = useGameStore((s) => s.goToScreen);
   const startFromProgress = useGameStore((s) => s.startFromProgress);
+  const startStage = useGameStore((s) => s.startStage);
 
   const settingsHydrated = useSettingsStore((s) => s.hydrated);
   const hydrateSettings = useSettingsStore((s) => s.hydrate);
@@ -79,6 +80,9 @@ export function App() {
                 await startFromProgress();
               }}
               onSettings={() => goToScreen('settings')}
+              onSelectStage={(n) => {
+                void startStage(n);
+              }}
             />
           )}
           {screen === 'settings' && <SettingsPage onBack={() => goToScreen('menu')} />}

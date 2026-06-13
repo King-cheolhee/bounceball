@@ -38,6 +38,8 @@ interface GameState {
   hydrate: () => Promise<void>;
   goToScreen: (screen: Screen) => void;
   startFromProgress: () => Promise<void>;
+  /** 특정 스테이지로 바로 진입 (스테이지 셀렉트/확인용) */
+  startStage: (stage: number) => Promise<void>;
   /** 사망 '계수' — 엔진이 사망 연출 시작 즉시 호출. 연출 중 일시정지→재시도로
    *  지연 콜백이 증발해도 노데스 기록·통계가 오염되지 않는다 (리뷰 확정) */
   countDeath: () => Promise<void>;
@@ -103,6 +105,22 @@ export const useGameStore = create<GameState>((set, get) => ({
       stageDeaths: 0, // 새 진입 — 노데스 카운터 리셋
     });
     // currentStage 그대로 사용
+  },
+
+  async startStage(stage: number) {
+    await incrementPlays();
+    set({
+      currentStage: Math.min(Math.max(stage, 1), TOTAL_STAGES),
+      screen: 'play',
+      lives: INITIAL_LIVES,
+      isGameOver: false,
+      isStageClearing: false,
+      isPaused: false,
+      showAd: null,
+      pendingNextStage: null,
+      lastUnlockMsg: null,
+      stageDeaths: 0,
+    });
   },
 
   async countDeath() {

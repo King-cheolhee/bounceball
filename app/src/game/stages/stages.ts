@@ -494,7 +494,7 @@ const STAGES: StageData[] = [
     part(300), part(560, 430), part(850, 400), part(1100, 430), part(1450),
     part(1655, 340), part(2180, 430), part(2550), part(3000),
     shieldItem(1300, 430),
-  ], { chase: { speed: 300, delayMs: 2500 }, hint: '멈추면 지워진다 — 오른쪽으로!' }),
+  ], { chase: { speed: 265, delayMs: 2500 }, hint: '멈추면 지워진다 — 오른쪽으로!' }),
 
   // 최종장 — 코어 점화: 마지막 회랑 돌파 후 코어 샤프트를 등반해 위로 탈출
   stage(20, '코어 점화', 2620, { x: 2420, y: 100, width: 110, height: 110 }, [

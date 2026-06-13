@@ -13,19 +13,30 @@ import {
 } from '../../utils/constants';
 import type { GameInput } from '../../utils/types';
 
-/** 스테이지 N의 바운스 주기 (초). Stage 1 → 0.9초(시작 템포 +10%), Stage 20 → 0.4초. */
+/** 10라운드 이후 속도·템포 증가 곡선 완만화 (사용자 피드백: 후반 과속).
+ *  10까지는 그대로, 이후는 진행도를 LATE_SLOWDOWN 비율로 압축한다.
+ *  effective(10)=10이라 S10 경계에 불연속(속도 급변)이 없다.
+ *  ⚠️ 이 값을 바꾸면 .tmp/climb-sim.cjs·gimmick-sim.cjs의 eff()도 동일하게 맞출 것. */
+const LATE_SLOWDOWN = 0.5; // 작을수록 후반이 더 완만 — 실플레이로 튜닝
+function effectiveStage(stage: number): number {
+  return stage <= 10 ? stage : 10 + (stage - 10) * LATE_SLOWDOWN;
+}
+
+/** 스테이지 N의 바운스 주기 (초). Stage 1 → 0.9초(시작 템포 +10%), Stage 20 → (완만화 후) ~0.53초. */
 export function getBouncePeriod(stage: number): number {
+  const s = effectiveStage(stage);
   const START = 0.9;
   const END = 0.4;
-  const t = Math.min(Math.max((stage - 1) / 19, 0), 1);
+  const t = Math.min(Math.max((s - 1) / 19, 0), 1);
   return START - (START - END) * t;
 }
 
 export function getPhysicsForStage(stage: number) {
-  const period = getBouncePeriod(stage);
+  const s = effectiveStage(stage);
+  const period = getBouncePeriod(stage); // getBouncePeriod가 이미 effectiveStage 적용
   const gravity = (8 * TARGET_JUMP_HEIGHT) / (period * period);
   const bounceVelocity = -(gravity * period) / 2;
-  const maxHorizontalSpeed = BASE_MAX_HORIZONTAL_SPEED * (1 + (stage - 1) * 0.05);
+  const maxHorizontalSpeed = BASE_MAX_HORIZONTAL_SPEED * (1 + (s - 1) * 0.05);
   return { gravity, bounceVelocity, maxHorizontalSpeed, period };
 }
 

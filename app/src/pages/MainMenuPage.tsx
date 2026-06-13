@@ -9,6 +9,7 @@ import { getSkin } from '../utils/skins';
 interface Props {
   onStart: () => void;
   onSettings: () => void;
+  onSelectStage: (stage: number) => void;
 }
 
 /**
@@ -16,7 +17,7 @@ interface Props {
  * 클리어한 스테이지만큼 LCD 세그먼트가 한 칸씩 점등된다:
  * 죽어가던 게임기 화면이 플레이어의 진행으로 되살아나는 진행도 시각화.
  */
-export function MainMenuPage({ onStart, onSettings }: Props) {
+export function MainMenuPage({ onStart, onSettings, onSelectStage }: Props) {
   const currentStage = useGameStore((s) => s.currentStage);
   const checkpointStage = useGameStore((s) => s.checkpointStage);
   const maxClearedStage = useGameStore((s) => s.maxClearedStage);
@@ -25,6 +26,7 @@ export function MainMenuPage({ onStart, onSettings }: Props) {
   const selectedSkin = useUnlockStore((s) => s.selectedSkin);
   const allCleared = maxClearedStage >= TOTAL_STAGES;
   const [confirmReset, setConfirmReset] = useState(false);
+  const [showSelect, setShowSelect] = useState(false);
   const reset = useGameStore((s) => s.reset);
 
   useEffect(() => {
@@ -143,6 +145,50 @@ export function MainMenuPage({ onStart, onSettings }: Props) {
         <Button onClick={onStart} size="lg" style={{ minWidth: 240 }}>
           {allCleared ? '다시 도전하기' : currentStage === 1 ? '게임 시작' : '이어서 플레이'}
         </Button>
+
+        <button
+          onClick={() => setShowSelect((v) => !v)}
+          style={{
+            fontSize: 11,
+            letterSpacing: '0.18em',
+            opacity: 0.5,
+            textTransform: 'uppercase',
+            color: '#fff',
+            background: 'transparent',
+            border: 'none',
+            padding: 6,
+            cursor: 'pointer',
+          }}
+        >
+          스테이지 선택 {showSelect ? '▴' : '▾'}
+        </button>
+        {showSelect && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 6, maxWidth: 360 }}>
+            {Array.from({ length: TOTAL_STAGES }).map((_, i) => {
+              const n = i + 1;
+              const cleared = n <= maxClearedStage;
+              return (
+                <button
+                  key={n}
+                  onClick={() => onSelectStage(n)}
+                  style={{
+                    aspectRatio: '1',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    color: cleared ? '#000' : '#fff',
+                    background: cleared ? '#fff' : 'transparent',
+                    border: '1px solid rgba(255,255,255,0.45)',
+                    opacity: cleared || n <= maxClearedStage + 1 ? 1 : 0.4,
+                  }}
+                  aria-label={`스테이지 ${n} 플레이`}
+                >
+                  {n}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {(currentStage > 1 || maxClearedStage > 0) && !confirmReset && (
           <button

@@ -215,18 +215,25 @@ export class Renderer {
         ctx.setLineDash([]);
         this.drawPerfectZone(el, w);
       } else if (variant === 'explosive') {
+        // 폭발 발판 — 밟으면 즉사하는 함정. 흰색이면 일반 발판과 헷갈려서,
+        // '전기=위험' 신호로 노란색 + 번개(지그재그) 표시한다 (사용자 요청).
         const flash = 0.55 + 0.45 * Math.sin(t * 0.012);
-        ctx.fillStyle = `rgba(255,255,255,${flash})`;
+        const elec = `rgba(255,209,26,${flash})`; // 경고 노랑
+        ctx.fillStyle = elec;
         ctx.fillRect(el.x, el.y, w, FLOOR_THICKNESS);
-        // hatching above
-        ctx.strokeStyle = `rgba(255,255,255,${flash})`;
+        // 발판 위 지그재그 번개 — 닿으면 안 되는 전기 띠
+        ctx.strokeStyle = elec;
         ctx.lineWidth = 2;
-        for (let xx = el.x; xx < el.x + w; xx += 10) {
-          ctx.beginPath();
-          ctx.moveTo(xx, el.y - 10);
-          ctx.lineTo(xx + 10, el.y);
-          ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(el.x, el.y - 3);
+        let zx = el.x;
+        let up = true;
+        while (zx < el.x + w) {
+          zx = Math.min(zx + 9, el.x + w);
+          ctx.lineTo(zx, el.y - (up ? 13 : 3));
+          up = !up;
         }
+        ctx.stroke();
       }
     } else if (el.type === 'spike') {
       const w = el.width ?? SPIKE_WIDTH;

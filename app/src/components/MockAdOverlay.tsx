@@ -49,11 +49,13 @@ export function MockAdOverlay({ type, onClose }: Props) {
           gap: 12,
         }}
       >
-        <div style={{ fontSize: 11, letterSpacing: '0.3em', opacity: 0.6 }}>MOCK AD · {type.toUpperCase()}</div>
+        <div style={{ fontSize: 11, letterSpacing: '0.3em', opacity: 0.6 }}>광고 · {type === 'rewarded' ? 'REWARDED' : 'INTERSTITIAL'}</div>
         <div style={{ fontSize: 28, fontWeight: 900 }}>{type === 'rewarded' ? '보상형 광고' : '전면 광고'}</div>
         <div style={{ fontSize: 12, opacity: 0.5, maxWidth: 320, textAlign: 'center', lineHeight: 1.5 }}>
-          실제 출시 시 앱인토스 광고 SDK로 교체됩니다.
-          {type === 'rewarded' ? ' 끝까지 시청하면 목숨 +3.' : ''}
+          {/* 이 화면은 개발용 미리보기로 일반 브라우저에서만 보인다.
+              토스 앱/샌드박스에서는 앱인토스 실제 광고가 노출된다(ads.ts presentRealAd). */}
+          개발 환경 광고 미리보기
+          {type === 'rewarded' ? ' · 끝까지 시청하면 목숨 +3' : ''}
         </div>
         <div style={{ fontSize: 36, fontWeight: 900, fontVariantNumeric: 'tabular-nums', marginTop: 8 }}>
           {Math.ceil(remaining)}s

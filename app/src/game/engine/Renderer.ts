@@ -41,6 +41,8 @@ export interface RenderState {
   bombExploded: Set<number>;
   /** 추격 벽 현재 x — chase 없는 스테이지는 null */
   waveX: number | null;
+  /** 추격 몬스터 현재 위치들 — chaser 없으면 빈 배열 (여러 마리 지원) */
+  chaserPositions: { x: number; y: number }[];
   /** 스테이지 시작 기준 게임 시계 — 점멸·이동 가시 상태 (충돌과 동일 기준) */
   stageMs: number;
   /** 수집된 부품/백업 셀 인덱스 — 그리지 않음 */
@@ -106,6 +108,9 @@ export class Renderer {
 
     // 추격 벽(셧다운 웨이브) — 모든 월드 오브젝트 위를 덮는다
     this.drawWave(state, DESIGN_HEIGHT);
+
+    // 추격 몬스터 — 공을 쫓는 포식자
+    this.drawChaser(state);
 
     ctx.restore();
 
@@ -492,27 +497,38 @@ export class Renderer {
     ctx.fillRect(el.x + 4, el.y - 17, 3, 5);
   }
 
-  /** 발사 패드 (V2) — 진행 방향으로 흐르는 셰브론(>>) */
+  /** 발사 벽돌 (V2/V4) — 정사각 벽돌 모양 + 발사 방향 화살표(흐르는 셰브론).
+   *  사용자 요청: "좌/우로 발사되는 벽돌"을 벽돌형으로 렌더 (기능은 발사 패드 그대로). */
   private drawLauncher(el: StageElement, t: number) {
     const ctx = this.ctx;
     const w = el.width ?? 46;
     const dir = el.dir ?? 1;
+    const h = 20; // 벽돌형 두께 (el.y = 윗면)
+    // 벽돌 본체
     ctx.fillStyle = FG;
-    ctx.fillRect(el.x, el.y, w, FLOOR_THICKNESS + 2);
-    // 패드 위 셰브론 3개 — 발사 방향으로 흐른다 (방향과 기능의 무언 교육)
+    ctx.fillRect(el.x, el.y, w, h);
+    // 벽돌 줄눈 (검은 선) — 가로 1줄 + 엇갈린 세로 줄눈
+    ctx.fillStyle = BG;
+    ctx.fillRect(el.x, el.y + h / 2 - 1, w, 2);
+    for (let xx = el.x + 18; xx < el.x + w; xx += 36) {
+      ctx.fillRect(xx, el.y, 2, h / 2);
+      const lower = xx + 18;
+      if (lower < el.x + w) ctx.fillRect(lower, el.y + h / 2, 2, h / 2);
+    }
+    // 발사 방향 화살표(셰브론) — 벽돌 위에 검은색으로 흐른다 (방향=기능 무언 교육)
     const cycle = 600;
-    const slide = ((t % cycle) / cycle) * 14 * dir;
-    ctx.strokeStyle = FG;
+    const slide = ((t % cycle) / cycle) * 16 * dir;
+    ctx.strokeStyle = BG;
     ctx.lineWidth = 2.5;
-    const cy = el.y - 9;
-    const baseX = el.x + w / 2 - dir * 14;
+    const cy = el.y + h / 2;
+    const baseX = el.x + w / 2 - dir * 16;
     for (let i = 0; i < 3; i++) {
-      const cx = baseX + dir * i * 14 + slide;
-      if (cx < el.x + 4 || cx > el.x + w - 4) continue;
+      const cx = baseX + dir * i * 16 + slide;
+      if (cx < el.x + 7 || cx > el.x + w - 7) continue;
       ctx.beginPath();
-      ctx.moveTo(cx - dir * 5, cy - 5);
+      ctx.moveTo(cx - dir * 6, cy - 6);
       ctx.lineTo(cx, cy);
-      ctx.lineTo(cx - dir * 5, cy + 5);
+      ctx.lineTo(cx - dir * 6, cy + 6);
       ctx.stroke();
     }
   }
@@ -596,6 +612,48 @@ export class Renderer {
       if (px < left) continue;
       if ((i + Math.floor(t / 90)) % 3 === 0) continue;
       ctx.fillRect(px, py, 3, 3);
+    }
+  }
+
+  /** 추격 몬스터 (V3, S19/S20) — 공을 쫓는 박쥐형 포식자(여러 마리).
+   *  살상 원 = 정확히 chaser.radius. 이 원에 공(반경 16)이 닿으면 사망 = 두 원이 겹치는
+   *  순간(중심거리 ≤ radius+16)과 일치 → "보이는 것 = 죽는 것" (적대적 리뷰 지적 반영). */
+  private drawChaser(state: RenderState) {
+    const positions = state.chaserPositions;
+    if (!positions || positions.length === 0) return;
+    const ctx = this.ctx;
+    const t = state.timeMs;
+    const radius = state.stage.chaser?.radius ?? 26; // 살상 경계
+    const flap = Math.sin(t * 0.012);
+    for (const pos of positions) {
+      // 살상 원(실선) — 공이 이 원에 닿으면 죽는다 (몸통 외곽 = 살상 경계)
+      ctx.strokeStyle = FG;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+      ctx.stroke();
+      // 박쥐 본체·날개 — 살상 원 안에 들어오게 (시각이 판정보다 크지 않도록)
+      ctx.fillStyle = FG;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, radius * 0.42, 0, Math.PI * 2);
+      ctx.fill();
+      const wing = radius * (0.62 + flap * 0.18);
+      ctx.beginPath();
+      ctx.moveTo(pos.x - radius * 0.28, pos.y);
+      ctx.lineTo(pos.x - radius * 0.85, pos.y - wing * 0.5 - 2);
+      ctx.lineTo(pos.x - radius * 0.28, pos.y + 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(pos.x + radius * 0.28, pos.y);
+      ctx.lineTo(pos.x + radius * 0.85, pos.y - wing * 0.5 - 2);
+      ctx.lineTo(pos.x + radius * 0.28, pos.y + 6);
+      ctx.closePath();
+      ctx.fill();
+      // 노려보는 눈
+      ctx.fillStyle = BG;
+      ctx.fillRect(pos.x - 5, pos.y - 3, 3, 4);
+      ctx.fillRect(pos.x + 2, pos.y - 3, 3, 4);
     }
   }
 

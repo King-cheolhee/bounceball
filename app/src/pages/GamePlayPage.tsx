@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GameEngine } from '../game/engine/GameEngine';
 import { TOTAL_STAGES, STAGE_CLEAR_OVERLAY_MS } from '../utils/constants';
 import { advanceAfterClear, useGameStore } from '../stores/gameStore';
@@ -15,8 +15,9 @@ import { MockAdOverlay } from '../components/MockAdOverlay';
 import { sound } from '../services/sound';
 import { music } from '../services/music';
 import { submitScore } from '../services/leaderboard';
-import { preloadAd } from '../services/ads';
+import { preloadAd, canUseRealAd, presentRealAd } from '../services/ads';
 import { logEvent } from '../services/analytics';
+import { setAwake } from '../services/screen';
 import { getBgmLayers } from '../utils/story';
 
 interface Props {
@@ -118,6 +119,12 @@ export function GamePlayPage({ onExit }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 게임 플레이 중 화면 항상 켜짐 (방치형 구간에서 화면 꺼짐 방지). 나갈 때 해제.
+  useEffect(() => {
+    setAwake(true);
+    return () => setAwake(false);
+  }, []);
+
   // 뷰포트 변경 시 resize
   useEffect(() => {
     engineRef.current?.resize(viewport.width, viewport.height);
@@ -187,6 +194,37 @@ export function GamePlayPage({ onExit }: Props) {
       sound.resumeFrom('ad');
     };
   }, [showAd]);
+
+  // 실제 광고 사용 가능 환경(토스 앱/샌드박스)인지 — 마운트 시 1회 결정
+  const realAdEnv = useMemo(() => canUseRealAd(), []);
+
+  // 광고 종료 처리 (실 광고/Mock 공통 경로)
+  const handleAdClose = useCallback(
+    (rewarded: boolean) => {
+      const stageBefore = useGameStore.getState().currentStage;
+      consumeAd(rewarded);
+      const st = useGameStore.getState();
+      // 스테이지가 바뀌었으면 currentStage effect가 로드하므로 여기선
+      // 스테이지 불변(부활 등)일 때만 직접 로드 — 이중 로드 방지
+      if (!st.isGameOver && engineRef.current && st.currentStage === stageBefore) {
+        engineRef.current.loadStage(st.currentStage);
+      }
+    },
+    [consumeAd],
+  );
+
+  // 토스 환경: showAd 설정 시 실제 전체화면 광고 노출 → 종료 후 닫기 처리.
+  // (브라우저에서는 realAdEnv=false라 아래 MockAdOverlay가 대신 렌더된다)
+  useEffect(() => {
+    if (!showAd || !realAdEnv) return;
+    let cancelled = false;
+    void presentRealAd(showAd).then((rewarded) => {
+      if (!cancelled) handleAdClose(rewarded);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [showAd, realAdEnv, handleAdClose]);
 
   useVisibilityPause(
     useCallback(() => {
@@ -341,21 +379,10 @@ export function GamePlayPage({ onExit }: Props) {
         </div>
       )}
 
-      {showAd && (
+      {/* Mock 광고는 브라우저(realAdEnv=false)에서만. 토스/샌드박스는 presentRealAd가 처리 */}
+      {showAd && !realAdEnv && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 6 }}>
-          <MockAdOverlay
-            type={showAd}
-            onClose={(rewarded) => {
-              const stageBefore = useGameStore.getState().currentStage;
-              consumeAd(rewarded);
-              const st = useGameStore.getState();
-              // 스테이지가 바뀌었으면 currentStage effect가 로드하므로 여기선
-              // 스테이지 불변(부활 등)일 때만 직접 로드 — 이중 로드 방지
-              if (!st.isGameOver && engineRef.current && st.currentStage === stageBefore) {
-                engineRef.current.loadStage(st.currentStage);
-              }
-            }}
-          />
+          <MockAdOverlay type={showAd} onClose={handleAdClose} />
         </div>
       )}
 

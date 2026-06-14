@@ -95,6 +95,12 @@ interface StageOpts {
   hint?: string;
   /** 추격전 — 왼쪽에서 소멸 벽이 등속 추격 (V2, S19) */
   chase?: { speed: number; delayMs: number };
+  /** 추격 몬스터 — 공의 이동 이력을 시간차로 추적 (V4, S19/S20). count로 여러 마리 */
+  chaser?: {
+    speed: number; delayMs: number; spawn: { x: number; y: number };
+    radius?: number; count?: number; lagMs?: number; lagGapMs?: number;
+    slowAboveY?: number; slowFactor?: number;
+  };
 }
 
 function stage(
@@ -117,6 +123,7 @@ function stage(
     ...(opts.hint ? { hint: opts.hint } : {}),
     ...(opts.isCheckpointEnd ? { isCheckpointEnd: true } : {}),
     ...(opts.chase ? { chase: opts.chase } : {}),
+    ...(opts.chaser ? { chaser: opts.chaser } : {}),
   };
 }
 
@@ -419,138 +426,104 @@ const STAGES: StageData[] = [
     part(2820, 300), part(3140, 220), part(3460, 140), // 계단 호 정점 부근 보상
   ], { hint: '벽돌을 밟고 올라가라 — 한 번씩만' }),
 
-  stage(17, '교차 버스', 3200, exitRight(3200), [
-    floor(0, 350),
-    floor(380, 100, 'explosive'),
-    floor(480, 100, 'fragile'),
-    floor(580, 100),
-    floor(680, 100, 'fragile'),
-    floor(780, 100, 'explosive'),
-    floor(880, 100, 'fragile'),
-    floor(980, 100),
-    floor(1080, 100, 'fragile'),
-    floor(1180, 100, 'explosive'),
-    floor(1280, 100, 'fragile'),
-    floor(1380, 100),
-    floor(1480, 100, 'fragile'),
-    floor(1580, 100, 'explosive'),
-    floor(1680, 100, 'fragile'),
-    floor(1780, 100),
-    floor(1880, 100, 'fragile'),
-    floor(1980, 100, 'explosive'),
-    floor(2080, 1120),
-    ceilingSpike(420, 60),
-    ceilingSpike(680, 60),
-    ceilingSpike(880, 60),
-    ceilingSpike(1080, 60),
-    ceilingSpike(1340, 60),
-    ceilingSpike(1580, 60),
-    ceilingSpike(1880, 60),
-    // V2: 가짜 가시 — 진짜(1410)는 미세하게 깜빡이지만 이놈은 멈춰 있다. 위에 ◆
-    fakeSpike(1010),
-    part(1030, 500),
-    spike(1410),
-    // V2: 이동 가시 — 천장 가시 회랑 사이의 세로 박자 관문
-    movingSpike(1800, 330, 160),
-    part(450, 480), part(700, 480), part(1100, 480), part(1600, 480), part(2300), part(2800),
-    shieldItem(1900, 470),
-  ], { hint: '깜빡이지 않는 가시는 — 가짜다' }),
+  // ★ V4 재설계 — 대각 도약: 정사각 벽돌이 우상단 대각선으로 띄엄띄엄(Δx315·Δy60) 계단 상승.
+  //   한 칸당 한 번씩만(2회 밟으면 소멸 → 발 디딜 곳 없어 추락). 4칸을 건너 위쪽
+  //   상하 미로(좌벽 짧음·우벽 막힘, 바닥은 1회붕괴 fragile)로 들어가 벽타기로 위 탈출.
+  //   (feas-stairs: Δx300~320·Δy60 9/9 견고 검증)
+  stage(17, '대각 도약', 2300, { x: 1820, y: 0, width: 250, height: 55 }, [
+    floor(0, 600),                       // 시작 지면 run-up + 스폰(무입력 생존), y600
+    // 대각 정사각 벽돌 계단 4칸 — Δx315·Δy60(feas 9/9). b1은 지면 바운스가 착지하는 자리(probe x800).
+    // 한 칸당 한 번씩만(2회 밟으면 소멸 → 발판 없어 추락). b4=top340 → 미로 위 벽타기 공간 확보.
+    brickBlock(760, 520),                // b1 (지면→착지, center800)
+    brickBlock(1075, 460),               // b2 (Δx315 Δy60)
+    brickBlock(1390, 400),               // b3
+    brickBlock(1705, 340),               // b4
+    // 상하 미로 — 좌벽 짧음(공이 넘어 들어옴), 우벽 막힘, 바닥 fragile(1회붕괴).
+    // 탈출구는 b4 바운스 정점(top68) 위(y0~55)라 반드시 벽타기로 더 올라가야 닿는다.
+    wallAt(1810, 180, 380),              // 좌벽 짧음 y180~560
+    floorAt(1820, 560, 250, 'fragile'),  // 미로 바닥 fragile 1820~2070 (못 쉼)
+    wallAt(2070, 60, 500),               // 우벽 막힘 y60~560
+    part(250, 450), part(800, 480), part(1115, 420), part(1430, 360), part(1745, 300),
+    part(1945, 250), part(1945, 460),
+    shieldItem(300, 540),
+  ], { spawn: { x: 100, y: 420 }, hint: '한 칸씩만 — 2번 밟으면 무너진다. 미로는 벽타기로!' }),
 
-  // V2: 2회 벽돌·이동 가시를 기존 폭발/붕괴 발판 회랑에 합성
-  stage(18, '버스 폭주', 3200, exitRight(3200), [
-    floor(0, 300),
-    floor(320, 100, 'fragile'),
-    floor(420, 100, 'brick'),
-    floor(520, 100, 'explosive'),
-    floor(620, 100, 'explosive'),
-    floor(720, 100, 'fragile'),
-    floor(820, 100, 'explosive'),
-    floor(920, 100, 'fragile'),
-    floor(1020, 100, 'brick'),
-    floor(1120, 100, 'explosive'),
-    floor(1220, 100, 'fragile'),
-    // 폭주 구덩이 — 바닥이 2회 벽돌: 첫 바운스(균열)에 벽 반동 시도, 한 번 더 기회
-    // (V2: fragile→brick — 신규 기믹 활용 + 탈출 창 완화)
-    floorAt(1320, 900, 360, 'brick'),
-    wallAt(1310, G, 300),
-    wallAt(1495, G, 300),   // 중앙 기둥
-    wallAt(1680, G, 300),
-    floor(1680, 100, 'fragile'),
-    floor(1780, 100, 'explosive'),
-    floor(1880, 100, 'fragile'),
-    floor(1980, 100, 'explosive'),
-    floor(2080, 100, 'brick'),
-    floor(2180, 100, 'fragile'),
-    floor(2280, 920),
-    movingSpike(2450, 340, 160),
-    part(350, 430), part(800), part(1230, 430), part(1500, 700), part(1830), part(2400), part(2800),
-    shieldItem(1170, 400),
-  ], { height: 1020 }),
+  // ★ V4 재설계 「폭파 하강」 — 시작 폭탄으로 우측 금 간 벽을 부수면 아래로 하강.
+  //   하강 중 '우측 발사 벽돌'에 착지 → 우측으로 쭉 발사(손 떼면 코스팅, 벽에 닿으면 튕김) →
+  //   날아가 부딪힌 벽을 타이밍 옆뛰기(벽킥)로 우상단 양옆 벽 사이를 이단점프 등반해 탈출.
+  //   (v4-scenarios 하강·발사·벽킥 샤프트 검증)
+  stage(18, '폭파 하강', 1800, { x: 1320, y: 0, width: 190, height: 150 }, [
+    // 시작: 폭탄으로 우측 금 간 벽 파괴 → 하강 (벽이 발판 우단을 막아 폭발 전엔 못 지남)
+    floorAt(40, 160, 360),               // 시작 발판 40~400, y160 (스폰, 무입력 생존)
+    crackedWall(400, 0, 440),            // 금 간 벽 x400 y0~440 (우측 차단)
+    bombAt(300, 132),                    // 폭탄 (발판 위 — 밟으면 점화 → 1.2s 후 벽 파괴)
+    // 우측 발사 벽돌 — 하강해 착지하면 우측으로 발사
+    launcherAt(440, 560, 1, 260),        // 440~700, y560, 우발사
+    // 발사 우측 비행 → 우상단 벽킥 샤프트(양옆 벽)로 등반 탈출
+    floorAt(1150, 580, 350),             // 비행 착지대 + 샤프트 바닥 1150~1500, y580
+    wallAt(1300, 80, 360),               // 좌벽 짧음 y80~440 (인너 1310~1500 = 190)
+    wallAt(1500, 80, 520),               // 우벽 막힘 y80~600
+    part(150, 110), part(560, 510), part(560, 300), part(900, 520),
+    part(1380, 480), part(1380, 280), part(1380, 120),
+    shieldItem(150, 110),
+  ], { spawn: { x: 120, y: 60 }, hint: '폭탄으로 벽을 부숴 내려가라 — 발사 후 벽 차고 올라!' }),
 
-  // ★ V2 「셧다운 웨이브」 — 추격전: 왼쪽에서 소멸 벽이 등속(300px/s) 추격.
-  //   멈추면 지워진다 (보호막 무효). 구덩이 없음 — 가시·붕괴 발판·반동 부스터만.
-  //   벽 반동(1.35×)이 '빠른 길' = 시그니처 기술의 졸업 시험 (Bounce Tales Final Ride 문법)
-  stage(19, '셧다운 웨이브', 3200, exitRight(3200), [
-    floor(0, 430),
-    floor(460, 170, 'fragile'),
-    floor(660, 340),
-    spike(800),
-    floor(1030, 150, 'fragile'),
-    floor(1210, 390),
-    spike(1380),
-    floor(1600, 480),
-    wallAt(1650, 420, 180), // 반동 부스터 — 차고 나가면 1.35배 가속 (넘어가도 됨)
-    spike(1900),
-    floor(2110, 140, 'fragile'),
-    floor(2280, 920),
-    spike(2480),
-    wallAt(2700, 420, 180), // 두 번째 부스터
-    spike(2920),
-    part(300), part(560, 430), part(850, 400), part(1100, 430), part(1450),
-    part(1655, 340), part(2180, 430), part(2550), part(3000),
-    shieldItem(1300, 430),
-  ], { chase: { speed: 265, delayMs: 2500 }, hint: '멈추면 지워진다 — 오른쪽으로!' }),
+  // ★ V4 재설계 「포식자」 — 모든 바닥이 2회 밟으면 부서지는 벽돌. 멈추면 같은 벽돌이
+  //   2회째에 붕괴해 추락 → 신중하고도 박진감 있게 도주. 몬스터는 공의 '이동 이력'을
+  //   시간차로 따라온다(직진 호밍 아님). 도주 끝에 발사 지그재그(좌발사→매달린 벽 벽킥→
+  //   우발사→정점 탈출)로 한 단씩 위로 올라 탈출. (v4-scenarios 도주·발사 지그재그 검증)
+  stage(19, '포식자', 3100, { x: 2860, y: 0, width: 240, height: 140 }, [
+    // 전 바닥 = 2회 벽돌(분절, 한 번씩 밟고 우측으로). 멈추면 붕괴→추락.
+    // (시작 1칸만 일반 발판 — 무입력 3초 생존 공정성. 이후 전부 벽돌)
+    floorAt(0, 600, 180), floorAt(180, 600, 180, 'brick'), floorAt(360, 600, 180, 'brick'),
+    floorAt(540, 600, 180, 'brick'), floorAt(720, 600, 180, 'brick'), floorAt(900, 600, 180, 'brick'),
+    floorAt(1080, 600, 180, 'brick'), floorAt(1260, 600, 180, 'brick'), floorAt(1440, 600, 180, 'brick'),
+    floorAt(1620, 600, 180, 'brick'), floorAt(1800, 600, 180, 'brick'), floorAt(1980, 600, 180, 'brick'),
+    floorAt(2160, 600, 200, 'brick'),    // 도주 끝 (~2360)
+    // 솟는 가시 4개 (장애물) — 정점(top328) 부근으로 내려와 위협. 위상은 holdR 통과창으로 튜닝(sweep).
+    movingSpike(420, 250, 110, 4, 0.95), movingSpike(900, 250, 110, 4, 0.05),
+    movingSpike(1380, 250, 110, 4, 0), movingSpike(1860, 250, 110, 4, 0),
+    // === 발사 지그재그 피날레 (한 단씩 위로) ===
+    // 좌발사 벽돌(약간 상단 y540) — 도주에서 올라타면 좌측 발사
+    launcherAt(2400, 540, -1, 170),      // 2400~2570
+    // 매달린 벽(밑면 y290) — 도주(정점 top328)는 밑으로 통과, 좌발사(정점 top268)는 부딪혀 벽킥
+    { type: 'wall', x: 2200, y: 90, width: 12, height: 200 }, // y90~290
+    // 우발사 벽돌(한 단 위 y355) — 벽킥 하강 궤적 위에서 받아 우측 발사
+    launcherAt(2640, 355, 1, 160),       // 2640~2800
+    // 탈출구(x2860~3100, y0~140) = 우발사 포물선 정점
+    part(250, 470), part(720, 470), part(1260, 470), part(1800, 470),
+    part(2480, 460), part(2720, 280), part(2950, 120),
+    shieldItem(250, 470),
+  ], { chaser: { speed: 300, delayMs: 2500, spawn: { x: -200, y: 560 }, radius: 26, lagMs: 1400 },
+       hint: '멈추면 잡힌다 — 발사 벽돌로 위로 탈출!' }),
 
-  // 최종장 — 코어 점화: 마지막 회랑 돌파 후 코어 샤프트를 등반해 위로 탈출
-  stage(20, '코어 점화', 2620, { x: 2420, y: 100, width: 110, height: 110 }, [
-    floorAt(0, 1080, 250),
-    floorAt(270, 1080, 80, 'explosive'),
-    floorAt(350, 1080, 80, 'fragile'),
-    floorAt(430, 1080, 100),
-    floorAt(530, 1080, 80, 'fragile'),
-    floorAt(610, 1080, 80, 'explosive'),
-    floorAt(690, 1080, 80, 'fragile'),
-    floorAt(770, 1080, 110),
-    floorAt(880, 1080, 80, 'explosive'),
-    // 구멍 (960~1140)
-    floorAt(1140, 1080, 80, 'fragile'),
-    floorAt(1220, 1080, 80, 'explosive'),
-    blinkFloorAt(1300, 1080, 100, 3), // V2: 점멸 발판 — 최종장의 박자 시험
-    floorAt(1400, 1080, 80, 'fragile'),
-    floorAt(1480, 1080, 80, 'explosive'),
-    floorAt(1560, 1080, 100),
-    floorAt(1660, 1080, 80, 'fragile'),
-    floorAt(1740, 1080, 80, 'explosive'),
-    floorAt(1820, 1080, 100, 'fragile'),
-    floorAt(1920, 1080, 700), // 샤프트 바닥까지 (2620)
-    spikeAt(2050, 1080, 40),
-    spikeAt(2250, 1080, 40),
-    // 코어 샤프트 — 좌벽(2400~2410) + 우측 경계(2620), 폭 210. 등반이 곧 점화 시퀀스
-    wallAt(2400, 220, 740),
-    floorAt(2400, 220, 130),
-    // 샤프트 안 마지막 위협 — 좌벽에 매달린 납땜 침. 이 높이를 지날 땐 오른쪽 면을 타라
-    // (등반 중 위치 선택 시험. y=500: 진입 직후 자연 반동 구간(850~960)과 겹치지 않게 상향)
-    { type: 'ceiling_spike', x: 2415, y: 500, width: 40 },
-    // V2: 점멸 벽 — 주기적으로 샤프트 안쪽 벽면이 돌출. 켜지면 샤프트가 좁아지고
-    // (가운데 통로는 항상 열려 있음), 벽 반동의 추가 발판이 된다 — 점멸+반동 최종 시험.
-    // x2520: 우측 경계(2620)에서 40px 띄움 — 경계 밀착 시 공이 월드 밖으로 사출되어
-    // 진동하던 버그의 데이터 차원 수정 (충돌 코드에도 경계 가드 추가됨, 리뷰 확정)
-    { type: 'wall', x: 2520, y: 480, width: 60, height: 160, blinkPeriodMult: 3 },
-    part(200, 940), part(560, 900), part(800, 940), part(1050, 880),
-    part(1340, 940), part(1620, 900), part(1980, 940), part(2540, 860),
-    part(2540, 560), part(2540, 360),
-    shieldItem(1480, 880),
-  ], { height: 1200, spawn: { x: 100, y: 900 } }),
+  // ★ V4 재설계 「코어 붕괴」 — 시작 폭탄으로 금 간 벽 파괴 → 하강. 아래는 전부 2회 벽돌.
+  //   우측으로 도주하며 발사 지그재그(좌발사→매달린 벽 벽킥→우발사→정점)로 한 단씩 위로 탈출.
+  //   몬스터 2마리가 공의 '이동 이력'을 시간차로 추적(상승 구간에선 느려져 공정). 상단엔
+  //   좌발사 트랩 — 위에서 탈출구로 곧장 접근하면 좌측 발사돼 클리어가 어렵다.
+  //   (v4-scenarios 하강·도주·발사 지그재그·2몬스터 검증)
+  stage(20, '코어 붕괴', 3100, { x: 2860, y: 0, width: 240, height: 140 }, [
+    // 시작(상단): 폭탄으로 우측 금 간 벽 파괴 → 아래로 하강 (정점이 화면 안이게 발판 y380)
+    floorAt(40, 380, 340),               // 시작 발판 40~380, y380 (스폰)
+    crackedWall(380, 0, 560),            // 금 간 벽 y0~560 (우측 차단 + 하강 마개)
+    bombAt(290, 155),                    // 폭탄 (공이 우측으로 날아가며 지나는 높이 — 점화→벽 파괴)
+    // 하강 착지 = 2회 벽돌 바닥(분절). 우측으로 도주(멈추면 붕괴→추락). 발사패드 직전(~2400)까지.
+    floorAt(420, 600, 180, 'brick'), floorAt(600, 600, 180, 'brick'), floorAt(780, 600, 180, 'brick'),
+    floorAt(960, 600, 180, 'brick'), floorAt(1140, 600, 180, 'brick'), floorAt(1320, 600, 180, 'brick'),
+    floorAt(1500, 600, 180, 'brick'), floorAt(1680, 600, 180, 'brick'), floorAt(1860, 600, 180, 'brick'),
+    floorAt(2040, 600, 160, 'brick'),    // 도주 끝 2200 (이후 호를 그려 좌발사에 안착)
+    // === 발사 지그재그 (한 단씩 위로) ===
+    launcherAt(2240, 540, -1, 240),      // 좌발사 2240~2480 (도주 호가 y540 닿는 자리, probe)
+    { type: 'wall', x: 2120, y: 90, width: 12, height: 220 }, // 매달린 벽 y90~310 (좌발사 후 벽킥)
+    launcherAt(2560, 355, 1, 170),       // 우발사 2560~2730 (한 단 위) → 발사 정점이 탈출구
+    // (상단 좌발사 트랩 제거 — Codex 지적: 탈출구와 겹쳐 클리어 지점이 되고, 공 정점(y99)이
+    //  트랩 높이(y50)에 닿지 못해 무용지물이며 '위에서 접근' 경로가 이 기하엔 존재하지 않음)
+    part(250, 470), part(720, 470), part(1320, 470), part(1860, 470),
+    part(2480, 460), part(2720, 280),
+    shieldItem(250, 470),
+  ], { height: 720, spawn: { x: 100, y: 280 },
+       chaser: { count: 2, speed: 320, delayMs: 2000, spawn: { x: -180, y: 560 }, radius: 26,
+                 lagMs: 1200, lagGapMs: 700, slowAboveY: 470, slowFactor: 0.35 } }),
 ];
 
 export const STAGES_DATA: StagesFile = {

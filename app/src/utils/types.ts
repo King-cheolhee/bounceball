@@ -55,6 +55,19 @@ export interface StageData {
   /** 추격전 「셧다운 웨이브」 — 왼쪽에서 소멸 벽이 등속 추격. 닿으면 즉사(보호막 무효).
    *  delayMs: 인트로 종료 후 출발 유예 (공정성: 스폰 3초 무입력 생존 보장) */
   chase?: { speed: number; delayMs: number };
+  /** 추격 몬스터 (V3/V4, S19/S20) — 출현 후 공을 추격. 닿으면 즉사(보호막 무효).
+   *  ★ V4: '직진 호밍'이 아니라 '공의 이동 이력(경로)을 시간차로 따라가는' 추적.
+   *    → 지그재그 상승에서 몬스터도 같은 경로를 돌아오느라 뒤처져 공정. 멈추면 잡힌다.
+   *  speed: 경로 추적 속도(px/s), delayMs: 인트로 종료 후 출현 유예,
+   *  spawn: 출현 위치(공보다 왼쪽/뒤), radius: 살상 반경(공 반경과 합산, 기본 26),
+   *  count: 몬스터 수(기본 1, S20=2), lagMs: 기본 추적 시간차(공의 lagMs 전 위치를 목표),
+   *  lagGapMs: 마리당 추가 시간차(여러 마리가 경로 위에 줄지어 늘어서게),
+   *  slowAboveY: 이 y보다 위(상승 구간)에선 속도 slowFactor배로(상승 중 완화, S20). */
+  chaser?: {
+    speed: number; delayMs: number; spawn: { x: number; y: number };
+    radius?: number; count?: number; lagMs?: number; lagGapMs?: number;
+    slowAboveY?: number; slowFactor?: number;
+  };
   elements: StageElement[];
 }
 

@@ -60,6 +60,10 @@ export class GameEngine {
   private bombExploded = new Set<number>();
   /** 추격 벽(셧다운 웨이브) 현재 x — chase 없는 스테이지는 null */
   private waveX: number | null = null;
+  /** 추격 몬스터 현재 위치들 — chaser 없으면 빈 배열. 공의 '이동 이력'을 시간차로 추적. 여러 마리 지원 */
+  private chaserPositions: { x: number; y: number }[] = [];
+  /** 공 이동 이력(물리 시계 기준) — 추격 몬스터가 이 경로를 시간차로 따라간다. 최근 ~6초 보관 */
+  private ballTrail: { ms: number; x: number; y: number }[] = [];
   private trailEnabled = true;
   private collectedItems = new Set<number>();
   private nearMissSeen = new Set<number>();
@@ -169,6 +173,15 @@ export class GameEngine {
     this.bombIgnited.clear();
     this.bombExploded.clear();
     this.waveX = stage.chase ? WAVE_START_X : null;
+    // 추격 몬스터 출현 위치 리셋 — 재시도 시 이전 시도의 위치가 남아 즉사하는 버그 방지.
+    // count 마리를 spawn에서 뒤로(왼쪽) 90px씩 어긋나게 배치 (겹침 방지)
+    this.chaserPositions = stage.chaser
+      ? Array.from({ length: stage.chaser.count ?? 1 }, (_, i) => ({
+          x: stage.chaser!.spawn.x - i * 90,
+          y: stage.chaser!.spawn.y,
+        }))
+      : [];
+    this.ballTrail = []; // 공 이동 이력 리셋 (재시도 시 이전 시도 경로 잔존 방지)
     this.collectedItems.clear();
     this.nearMissSeen.clear();
     this.particles.clear();
@@ -291,6 +304,12 @@ export class GameEngine {
 
     this.ball.update(step, input);
 
+    // 공 이동 이력 기록 — 추격 몬스터가 이 경로를 시간차로 따라간다 (chaser 스테이지만)
+    if (this.stage.chaser) {
+      this.ballTrail.push({ ms: this.physMs, x: this.ball.position.x, y: this.ball.position.y });
+      while (this.ballTrail.length > 0 && this.physMs - this.ballTrail[0].ms > 6000) this.ballTrail.shift();
+    }
+
     // 추격 벽(셧다운 웨이브) — 물리 시계 기반 절대 위치: 일시정지·히트스톱에 안전.
     // 물리 시계는 인트로 동안 멈춰 있으므로 유예(delayMs)만 빼면 된다 (스폰 3초 무입력 생존)
     if (this.stage.chase && this.waveX !== null) {
@@ -301,6 +320,38 @@ export class GameEngine {
         // 소멸 벽에 잡힘 — 보호막 무효 (낙사와 같은 등급의 즉사)
         this.triggerDeath('wave');
         return;
+      }
+    }
+
+    // 추격 몬스터 — 공의 '이동 이력'을 시간차(lag)로 따라간다(직진 호밍 아님).
+    // 각 몬스터는 공의 lag 전 위치를 목표로 그 방향으로 speed만큼 이동 → 지그재그에서도
+    // 같은 경로를 돌아오느라 뒤처진다. 멈추면 lag 전 위치가 따라붙어 잡힘. 물리 시계 기반(일시정지·히트스톱 안전).
+    if (this.stage.chaser && this.chaserPositions.length > 0) {
+      const ch = this.stage.chaser;
+      if (this.physMs >= ch.delayMs) {
+        const reach = (ch.radius ?? 26) + this.ball.radius;
+        const atGoal = reachedGoal(this.ball, this.stage.exit);
+        for (let i = 0; i < this.chaserPositions.length; i++) {
+          const m = this.chaserPositions[i];
+          // 살상: 공의 '현재' 위치와의 거리 (보이는 것 = 죽는 것)
+          const cdx = this.ball.position.x - m.x;
+          const cdy = this.ball.position.y - m.y;
+          if (cdx * cdx + cdy * cdy <= reach * reach && !atGoal) {
+            this.triggerDeath('monster');
+            return;
+          }
+          // 목표: 공의 (lag + i*lagGap) 전 위치 — 마리마다 더 뒤를 따라 줄지어 늘어선다
+          const lag = (ch.lagMs ?? 1300) + i * (ch.lagGapMs ?? 600);
+          const tgt = this.trailAt(this.physMs - lag);
+          const dx = tgt.x - m.x;
+          const dy = tgt.y - m.y;
+          const d = Math.hypot(dx, dy);
+          // 상승 구간(y가 작을수록 위) 완화 — slowAboveY보다 위면 느려진다 (S20 정밀 상승 공정성)
+          const slow = ch.slowAboveY !== undefined && this.ball.position.y < ch.slowAboveY ? (ch.slowFactor ?? 0.4) : 1;
+          const stepDist = ch.speed * slow * step;
+          if (d <= stepDist || d === 0) { m.x = tgt.x; m.y = tgt.y; }
+          else { m.x += (dx / d) * stepDist; m.y += (dy / d) * stepDist; }
+        }
       }
     }
 
@@ -494,6 +545,21 @@ export class GameEngine {
     this.pendingKick = { dir, until: this.physMs + WALL_KICK_WINDOW_MS };
   }
 
+  /** 공 이동 이력에서 targetMs 시점의 위치 (추격 몬스터 경로 추적용).
+   *  버퍼는 ms 오름차순 — targetMs 이하의 마지막 항목(이진 탐색). 이력 부족 시 가장 오래된/현재 위치. */
+  private trailAt(targetMs: number): { x: number; y: number } {
+    const t = this.ballTrail;
+    if (t.length === 0) return { x: this.ball.position.x, y: this.ball.position.y };
+    if (targetMs <= t[0].ms) return { x: t[0].x, y: t[0].y };
+    let lo = 0, hi = t.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (t[mid].ms <= targetMs) lo = mid;
+      else hi = mid - 1;
+    }
+    return { x: t[lo].x, y: t[lo].y };
+  }
+
   /** 착지 처리 — 퍼펙트 콤보(중독성 장치의 핵심) 포함 */
   private handleLanding(landed: { el: StageData['elements'][number]; index: number; perfect: boolean }) {
     if (!this.stage) return;
@@ -681,6 +747,7 @@ export class GameEngine {
         bombIgnited: this.bombIgnited,
         bombExploded: this.bombExploded,
         waveX: this.waveX,
+        chaserPositions: this.chaserPositions,
         stageMs: this.physMs, // 물리 시계 — 충돌 판정과 동일 기준 (보이는 것 = 죽는 것)
         collectedItems: this.collectedItems,
         flashAmount: this.flashAmount,

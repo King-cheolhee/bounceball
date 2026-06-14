@@ -6,9 +6,10 @@ import { sound } from '../services/sound';
 
 interface Props {
   onBack: () => void;
+  onExitRequest: () => void;
 }
 
-export function SettingsPage({ onBack }: Props) {
+export function SettingsPage({ onBack, onExitRequest }: Props) {
   const soundOn = useSettingsStore((s) => s.sound);
   const hapticOn = useSettingsStore((s) => s.haptic);
   const trailOn = useSettingsStore((s) => s.trail);
@@ -38,7 +39,10 @@ export function SettingsPage({ onBack }: Props) {
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: '0.06em' }}>설정</div>
-        <Button onClick={onBack} variant="ghost" size="sm">← 메뉴</Button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button onClick={onBack} variant="ghost" size="sm">← 메뉴</Button>
+          <Button onClick={onExitRequest} variant="ghost" size="sm" ariaLabel="미니앱 닫기">✕ 닫기</Button>
+        </div>
       </div>
 
       <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 520 }}>

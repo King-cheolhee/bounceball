@@ -11,6 +11,9 @@ import { useViewportSize } from './hooks/useViewportSize';
 import { getUserKeyForGame } from './services/auth';
 import { sound } from './services/sound';
 import { logEvent } from './services/analytics';
+import { closeMiniApp, onTossBackEvent } from './services/sdk';
+import { lockLandscape, syncSafeArea } from './services/screen';
+import { ExitConfirmModal } from './components/ExitConfirmModal';
 
 export function App() {
   const screen = useGameStore((s) => s.screen);
@@ -28,6 +31,7 @@ export function App() {
   const viewport = useViewportSize();
   const [ready, setReady] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
+  const [exitConfirm, setExitConfirm] = useState(false);
 
   // 진행 데이터, 설정, 해금, 유저키 hydrate
   useEffect(() => {
@@ -49,6 +53,21 @@ export function App() {
       window.removeEventListener('pointerdown', onFirst);
       window.removeEventListener('keydown', onFirst);
     };
+  }, []);
+
+  // 가로 모드 고정 + Safe Area SDK 동기화 (토스 환경에서만 실제 동작)
+  useEffect(() => {
+    const unlockOrientation = lockLandscape();
+    const unsubSafeArea = syncSafeArea();
+    return () => {
+      unlockOrientation();
+      unsubSafeArea();
+    };
+  }, []);
+
+  // 네이티브 뒤로가기 → 종료 확인 모달 (OS 뒤로가기에 의존하지 않고 확인 후 종료)
+  useEffect(() => {
+    return onTossBackEvent(() => setExitConfirm(true));
   }, []);
 
   // 스플래시 종료 + 데이터 준비 완료 → 메뉴로 (스플래시 이중 표시 버그 수정:
@@ -83,11 +102,20 @@ export function App() {
               onSelectStage={(n) => {
                 void startStage(n);
               }}
+              onExitRequest={() => setExitConfirm(true)}
             />
           )}
-          {screen === 'settings' && <SettingsPage onBack={() => goToScreen('menu')} />}
+          {screen === 'settings' && (
+            <SettingsPage onBack={() => goToScreen('menu')} onExitRequest={() => setExitConfirm(true)} />
+          )}
           {screen === 'play' && <GamePlayPage onExit={() => goToScreen('menu')} />}
         </>
+      )}
+
+      {exitConfirm && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
+          <ExitConfirmModal onConfirm={() => void closeMiniApp()} onCancel={() => setExitConfirm(false)} />
+        </div>
       )}
     </>
   );

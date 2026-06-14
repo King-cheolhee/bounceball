@@ -1,8 +1,13 @@
 /**
- * 앱인토스 Storage SDK 추상화 레이어.
- * 1단계(현재): localStorage 기반 mock.
- * 2단계: `@apps-in-toss/framework`의 Storage로 교체.
+ * 앱인토스 Storage 추상화 레이어.
+ *  - 토스 앱/샌드박스: 네이티브 `Storage`(@apps-in-toss/web-framework) — 앱 재시작에도 유지.
+ *  - 일반 브라우저(개발·검증): localStorage, 그마저 막히면 메모리 폴백.
+ *
+ * 상위 호출부는 전부 async 인터페이스라 매체 교체에도 수정이 필요 없다.
  */
+import { isInTossEnv } from './sdk';
+import { Storage as TossStorage } from '@apps-in-toss/web-framework';
+
 const PREFIX = 'tangtangball:';
 
 const memoryFallback = new Map<string, string>();
@@ -33,12 +38,35 @@ function safeRemove(key: string) {
 
 export const Storage = {
   async getItem(key: string): Promise<string | null> {
+    if (isInTossEnv()) {
+      try {
+        return await TossStorage.getItem(PREFIX + key);
+      } catch {
+        // 네이티브 저장소 실패 → 폴백
+      }
+    }
     return safeGet(key);
   },
   async setItem(key: string, value: string): Promise<void> {
+    if (isInTossEnv()) {
+      try {
+        await TossStorage.setItem(PREFIX + key, value);
+        return;
+      } catch {
+        // 폴백
+      }
+    }
     safeSet(key, value);
   },
   async removeItem(key: string): Promise<void> {
+    if (isInTossEnv()) {
+      try {
+        await TossStorage.removeItem(PREFIX + key);
+        return;
+      } catch {
+        // 폴백
+      }
+    }
     safeRemove(key);
   },
 };

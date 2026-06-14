@@ -16,8 +16,8 @@ import type { StageElement } from '../../utils/types';
 import type { Ball } from '../entities/Ball';
 import { blinkSolid, blinkStateOf, movingSpikeOffset } from './blink';
 
-/** 'wave'는 추격전(셧다운 웨이브) — 충돌이 아닌 GameEngine이 직접 판정 */
-export type DeathReason = 'fall' | 'spike' | 'ceiling-spike' | 'explosive' | 'wave';
+/** 'wave'(셧다운 웨이브)·'monster'(추격 몬스터)는 충돌이 아닌 GameEngine이 직접 판정 */
+export type DeathReason = 'fall' | 'spike' | 'ceiling-spike' | 'explosive' | 'wave' | 'monster';
 
 export interface CollisionResult {
   death?: DeathReason;

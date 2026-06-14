@@ -1,0 +1,17 @@
+/* 셀프호스팅 폰트 — 외부 CDN 의존 제거(검수 안정성·오프라인/차단 대비).
+   Pretendard(국문) · Inter(라틴·숫자) 가변 폰트, public/fonts/ 에서 서빙.
+   system-ui 폴백은 variables.css의 폰트 스택이 담당. */
+@font-face {
+  font-family: 'Pretendard';
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/PretendardVariable.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/InterVariable.woff2') format('woff2');
+}

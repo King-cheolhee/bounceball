@@ -171,21 +171,24 @@ export function MainMenuPage({ onStart, onSettings, onSelectStage, onExitRequest
             {Array.from({ length: TOTAL_STAGES }).map((_, i) => {
               const n = i + 1;
               const cleared = n <= maxClearedStage;
+              // 클리어한 스테이지 + 다음 진행할 1개까지만 선택 가능. 그 이상은 잠금(클리어 위조 방지).
+              const unlocked = n <= maxClearedStage + 1;
               return (
                 <button
                   key={n}
-                  onClick={() => onSelectStage(n)}
+                  onClick={unlocked ? () => onSelectStage(n) : undefined}
+                  disabled={!unlocked}
                   style={{
                     aspectRatio: '1',
                     fontSize: 12,
                     fontWeight: 700,
-                    cursor: 'pointer',
+                    cursor: unlocked ? 'pointer' : 'not-allowed',
                     color: cleared ? '#000' : '#fff',
                     background: cleared ? '#fff' : 'transparent',
                     border: '1px solid rgba(255,255,255,0.45)',
-                    opacity: cleared || n <= maxClearedStage + 1 ? 1 : 0.4,
+                    opacity: unlocked ? 1 : 0.35,
                   }}
-                  aria-label={`스테이지 ${n} 플레이`}
+                  aria-label={unlocked ? `스테이지 ${n} 플레이` : `스테이지 ${n} (잠김)`}
                 >
                   {n}
                 </button>

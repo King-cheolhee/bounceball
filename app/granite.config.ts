@@ -6,19 +6,19 @@ import { defineConfig } from '@apps-in-toss/web-framework/config';
  * tsc 타입체크 대상이 아니며, ait CLI가 자체 검증한다.
  *
  * ⚠️ 출시(콘솔 등록) 직전 사용자 최종 확인 필요 항목:
- *  - appName: 앱 스킴(intoss://tangtangball). **등록 후 수정 불가**. 현재는 후보값.
- *  - brand.icon: 실제 로고 파일 경로/규격(600x600 PNG)으로 교체.
+ *  - appName: 앱 스킴(intoss://tangtangball). **등록 후 수정 불가**. 사용자 확정(2026-06-14).
+ *  - brand.icon: public/logo.png(600x600 불투명)로 연결됨 — 빌드 시 dist 루트로 복사.
  *  - brand.primaryColor: 앱 정체성 색(검은 배경) 기준 임시값.
  */
 export default defineConfig({
-  // 영문 appName (명사형, 15자 이내) — 등록 후 수정 불가. 후보값.
+  // 영문 appName (명사형, 15자 이내) — 등록 후 수정 불가. 사용자 확정(2026-06-14).
   appName: 'tangtangball',
   brand: {
     // 내비게이션 바에 노출되는 국문 이름
     displayName: '탱탱볼해금',
     // 브랜드 대표색 (검은 화면 정체성) — 샌드박스에서 확인 후 조정
     primaryColor: '#000000',
-    // 로고 이미지 — 출시 전 실제 600x600 로고로 교체
+    // 로고 이미지 — public/logo.png(600x600 불투명) 사용, 빌드 시 dist 루트(/logo.png)로 복사됨
     icon: 'logo.png',
   },
   // 이 게임은 카메라/위치/연락처 등 별도 권한 요청이 없다

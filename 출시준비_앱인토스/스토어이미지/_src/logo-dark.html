@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="UTF-8">
+<style>
+  html,body{margin:0;padding:0}
+  .stage{
+    position:relative;width:600px;height:600px;background:#08080a;
+    background-image:radial-gradient(circle, rgba(255,255,255,.06) 1.3px, transparent 1.6px);
+    background-size:27px 27px;background-position:center;overflow:hidden;
+  }
+  /* 공 뒤 중앙 글로우 — 어두운 UI 배경에서 카드가 떠 보이게 */
+  .coreglow{position:absolute;inset:0;background:radial-gradient(circle at 51% 47%, rgba(255,255,255,.12), transparent 52%)}
+  .ball{position:absolute;border-radius:50%;background:#fff;box-shadow:0 0 64px 8px rgba(255,255,255,.30)}
+  .ball .hi{position:absolute;left:22%;top:22%;width:21%;height:21%;border-radius:50%;background:#000}
+  .ghost{position:absolute;border-radius:50%;background:#fff}
+  /* 미세 베젤 — 다크 UI에서 아이콘 경계를 살림 (라운드 마스크 안쪽까지 안전하게) */
+  .bezel{position:absolute;inset:0;box-shadow:inset 0 0 0 2px rgba(255,255,255,.10)}
+</style></head>
+<body>
+  <div class="stage">
+    <div class="coreglow"></div>
+    <div class="ghost" style="width:54px;height:54px;left:169px;top:440px;opacity:.14"></div>
+    <div class="ghost" style="width:100px;height:100px;left:186px;top:342px;opacity:.28"></div>
+    <div class="ball" style="width:210px;height:210px;left:199px;top:176px"><div class="hi"></div></div>
+    <div class="bezel"></div>
+  </div>
+</body></html>

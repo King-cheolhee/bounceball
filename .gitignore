@@ -1,8 +1,13 @@
 node_modules/
 dist/
+dist-pages/
 .tmp/
 .env
 .env.*
+# GRAC 등급분류 제출물(개인정보 포함: 제작업등록증 등) — 공개 repo에 절대 올리지 말 것
+출시준비_앱인토스/등급분류_제출물/
+# PII 포함 로컬 전용 문서(사업자번호·주소·전화)
+출시준비_앱인토스/GRAC_등급분류_신청과_콘솔입력값.md
 .claude/.review-pending
 .claude/.review-pending
 **/.claude/.review-pending

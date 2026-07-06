@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="UTF-8">
+<style>
+  html,body{margin:0;padding:0}
+  .stage{
+    position:relative;width:600px;height:600px;background:#000;
+    background-image:radial-gradient(circle, rgba(255,255,255,.075) 1.3px, transparent 1.6px);
+    background-size:27px 27px;background-position:center;overflow:hidden;
+  }
+  .ball{position:absolute;border-radius:50%;background:#fff}
+  .ball .hi{position:absolute;left:22%;top:22%;width:21%;height:21%;border-radius:50%;background:#000}
+  .ghost{position:absolute;border-radius:50%;background:#fff}
+  /* 미세 비네팅 — 가장자리를 살짝 눌러 공에 시선 집중 */
+  .vignette{position:absolute;inset:0;background:radial-gradient(circle at 51% 47%, transparent 52%, rgba(0,0,0,.55) 100%)}
+</style></head>
+<body>
+  <div class="stage">
+    <!-- 바운스 잔상: 좌하 → 우상으로 커지며 튀어오르는 '마지막 픽셀'의 도약 -->
+    <div class="ghost" style="width:54px;height:54px;left:169px;top:440px;opacity:.12"></div>
+    <div class="ghost" style="width:100px;height:100px;left:186px;top:342px;opacity:.24"></div>
+    <!-- 메인 공 (캐릭터 '도트') + 좌상단 반사점 -->
+    <div class="ball" style="width:210px;height:210px;left:199px;top:176px"><div class="hi"></div></div>
+    <div class="vignette"></div>
+  </div>
+</body></html>

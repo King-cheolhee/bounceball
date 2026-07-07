@@ -1,7 +1,9 @@
 import { Button } from '../components/Button';
+import { RatingBadge } from '../components/RatingBadge';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useUnlockStore } from '../stores/unlockStore';
 import { SKINS } from '../utils/skins';
+import { GAME_RATING } from '../utils/constants';
 import { sound } from '../services/sound';
 
 interface Props {
@@ -128,6 +130,41 @@ export function SettingsPage({ onBack, onExitRequest }: Props) {
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* 게임법 §33 제작정보표 — 도움말/정보란 법정 표시. 값은 constants.GAME_RATING 단일 정의. */}
+      <div style={{ marginTop: 32, maxWidth: 520 }}>
+        <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', opacity: 0.5, marginBottom: 8 }}>
+          게임물 정보 (법정 표시)
+        </div>
+        <div style={{ border: '1px solid rgba(255,255,255,0.22)', borderRadius: 8, overflow: 'hidden' }}>
+          {[
+            ['제명', GAME_RATING.title],
+            ['상호', GAME_RATING.company],
+            ['이용등급', GAME_RATING.rating],
+            ['등급분류번호', GAME_RATING.classificationNumber],
+            ['등급분류일자', GAME_RATING.classificationDate],
+            ['제작업 등록번호', GAME_RATING.makerRegNumber],
+          ].map(([k, v], i, arr) => (
+            <div
+              key={k}
+              style={{
+                display: 'flex',
+                fontSize: 12,
+                borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.12)' : 'none',
+              }}
+            >
+              <div style={{ width: '44%', padding: '9px 12px', opacity: 0.55, background: 'rgba(255,255,255,0.03)' }}>{k}</div>
+              <div style={{ flex: 1, padding: '9px 12px', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 14 }}>
+          <RatingBadge size={40} />
+          <div style={{ fontSize: 11, opacity: 0.5, lineHeight: 1.4 }}>
+            본 게임물은 게임물관리위원회로부터 {GAME_RATING.rating} 등급을 받았습니다.
+          </div>
         </div>
       </div>
 

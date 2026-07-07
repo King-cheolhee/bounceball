@@ -101,3 +101,15 @@ export const PART_PICKUP_RADIUS = 42;
 export const SHIELD_PICKUP_RADIUS = 44;
 /** 백업 셀(보호막) 피격 후 무적 시간 */
 export const SHIELD_INVULN_MS = 900;
+
+// ===== 게임법 §33 법정 표시의무 (GRAC 등급분류 SC-OM-260707-001, 전체이용가) =====
+/** 초기화면 등급 아이콘 + 설정 제작정보표에 쓰는 법정 표시값 (한 곳에서만 정의).
+ *  값 변경은 재심의/재발급 시에만. 내용정보는 전부 "없음"이라 내용정보 아이콘 불필요. */
+export const GAME_RATING = {
+  title: '탱탱볼해금',
+  company: '개발',
+  rating: '전체이용가',
+  classificationNumber: 'SC-OM-260707-001',
+  classificationDate: '2026.07.07',
+  makerRegNumber: '2026-000009',
+} as const;

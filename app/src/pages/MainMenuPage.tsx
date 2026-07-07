@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Button } from '../components/Button';
+import { RatingBadge } from '../components/RatingBadge';
 import { useGameStore } from '../stores/gameStore';
 import { useUnlockStore } from '../stores/unlockStore';
-import { TOTAL_STAGES } from '../utils/constants';
+import { TOTAL_STAGES, GAME_RATING } from '../utils/constants';
 import { STORY, CHAPTERS } from '../utils/story';
 import { getSkin } from '../utils/skins';
 
@@ -246,6 +247,25 @@ export function MainMenuPage({ onStart, onSettings, onSelectStage, onExitRequest
         <span>화면 좌측 터치 → 좌</span>
         <span>화면 우측 터치 → 우</span>
         <span>PC: ← →</span>
+      </div>
+
+      {/* 게임법 §33 초기화면 등급 표시 — 전체이용가는 초기화면 상시 표시로 매시간 표시 면제.
+          상세 제작정보표는 설정 화면에. */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginTop: 10,
+          alignSelf: 'flex-start',
+        }}
+      >
+        <RatingBadge size={40} />
+        <div style={{ fontSize: 9, opacity: 0.5, lineHeight: 1.3, fontVariantNumeric: 'tabular-nums' }}>
+          {GAME_RATING.rating}
+          <br />
+          {GAME_RATING.classificationNumber}
+        </div>
       </div>
     </div>
   );

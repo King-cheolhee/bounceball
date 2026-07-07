@@ -39,7 +39,7 @@ export function StageClearOverlay({ stage, onContinue, totalCleared, unlockMsg, 
       <div style={{ textAlign: 'center', fontFamily: 'Inter, Pretendard, sans-serif' }}>
         {totalCleared ? (
           <>
-            <div style={{ fontSize: 16, letterSpacing: '0.3em', opacity: 0.7 }}>{STORY.subtitle}</div>
+            <div style={{ fontSize: 16, letterSpacing: '0.3em', opacity: 0.7 }}>{STORY.allClearEyebrow}</div>
             <div style={{ fontSize: 54, fontWeight: 900, marginTop: 12, letterSpacing: '0.05em' }}>
               {STORY.allClearTitle}
             </div>

@@ -51,10 +51,7 @@ export function MainMenuPage({ onStart, onSettings, onSelectStage, onExitRequest
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <div style={{ fontSize: 11, letterSpacing: '0.3em', opacity: 0.5 }}>
-            {STORY.titleEn} · {STORY.subtitle}
-          </div>
-          <div style={{ fontSize: 30, fontWeight: 900, marginTop: 6, letterSpacing: '0.06em' }}>탱탱볼해금</div>
+          <div style={{ fontSize: 30, fontWeight: 900, letterSpacing: '0.06em' }}>탱탱볼해금</div>
           <div style={{ fontSize: 11, opacity: 0.45, marginTop: 4 }}>
             『{STORY.tagline}』 — {STORY.taglineSub}
           </div>
@@ -75,7 +72,7 @@ export function MainMenuPage({ onStart, onSettings, onSelectStage, onExitRequest
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 18 }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 12, letterSpacing: '0.3em', opacity: 0.5 }}>
-            {allCleared ? 'SYSTEM REBOOTED ✓' : 'NEXT STAGE'}
+            {allCleared ? '시스템 재부팅 완료 ✓' : 'NEXT STAGE'}
           </div>
           <div style={{ fontSize: 84, fontWeight: 900, lineHeight: 1, letterSpacing: '-0.02em', marginTop: 6 }}>
             {String(currentStage).padStart(2, '0')}

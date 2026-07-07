@@ -15,19 +15,19 @@
  */
 
 export const STORY = {
-  titleEn: 'TANGTANGBALL',
-  subtitle: 'THE LAST PIXEL',
+  // 게임물 제명은 한글 「탱탱볼해금」 단독(등급분류 신청 제명과 일치). 영문 제명/부제는 두지 않는다.
   tagline: '코어에 닿은 픽셀은 소원을 하나 이룬다',
   taglineSub: '마지막 픽셀의 소원 — 이 게임기가 다시 켜지는 것',
   heroName: '도트',
   goalName: '코어 셀',
-  allClearTitle: 'SYSTEM REBOOT',
+  /** 엔딩 상단 소제목 (한글 단독) */
+  allClearEyebrow: '마지막 픽셀',
+  allClearTitle: '시스템 재부팅',
   allClearBody: '소원은 이루어졌다 — 전원이 돌아왔다',
   /** 원작 BOUND의 "osimai(끝)" 오마주 — 짧고 건조한 마침표 */
   allClearTail: '끝',
-  /** 완수 메타 칭호 (V2) — 전 스테이지 PERFECT(부품 전량+노데스) 시 엔딩에 추가.
-   *  원작 CRAZY BOUND "you are crazy bound player!" 전통의 오마주 */
-  perfectTitle: 'YOU ARE A TRUE PIXEL.',
+  /** 완수 메타 칭호 (V2) — 전 스테이지 PERFECT(부품 전량+노데스) 시 엔딩에 추가 */
+  perfectTitle: '진정한 픽셀',
   partName: '부품',
   shieldName: '백업 셀',
 } as const;

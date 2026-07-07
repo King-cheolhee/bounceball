@@ -46,10 +46,7 @@ export function SplashPage({ onDone }: Props) {
         }
       `}</style>
       <div style={{ fontSize: 28, fontWeight: 900, letterSpacing: '0.1em', marginTop: 12 }}>탱탱볼해금</div>
-      <div style={{ fontSize: 11, letterSpacing: '0.3em', opacity: 0.4, animation: 'splash-blink 2s infinite' }}>
-        {STORY.titleEn} · {STORY.subtitle}
-      </div>
-      <div style={{ fontSize: 11, opacity: 0.35 }}>{STORY.tagline}</div>
+      <div style={{ fontSize: 11, opacity: 0.35, animation: 'splash-blink 2s infinite' }}>{STORY.tagline}</div>
     </div>
   );
 }

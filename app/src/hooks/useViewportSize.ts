@@ -42,9 +42,19 @@ function compensateVisualOffset() {
   if (!vv || !root) return;
   const x = vv.offsetLeft;
   const y = vv.offsetTop;
-  if (x !== 0 || y !== 0) {
+  // offset뿐 아니라 "크기만" 어긋나는 경우(레이아웃 뷰포트는 그대로인데
+  // 보이는 영역만 축소)도 보정 대상 — 이때도 fixed 페이지들이 큰 레이아웃
+  // 뷰포트 기준으로 배치되어 하단이 잘린다. 크기가 일치하는 평상시엔 no-op.
+  const mismatch =
+    x !== 0 ||
+    y !== 0 ||
+    Math.round(vv.width) !== window.innerWidth ||
+    Math.round(vv.height) !== window.innerHeight;
+  if (mismatch) {
     // 위치만 옮기면 #root 크기(=레이아웃 뷰포트)가 보이는 영역보다 커서
     // 하단이 잘린다 — 크기도 보이는 영역과 일치시킨다.
+    // (translate(0,0)이어도 transform이 있으면 하위 fixed의 기준이 #root가
+    //  되어 페이지들이 아래 지정한 크기를 따른다)
     root.style.transform = `translate(${x}px, ${y}px)`;
     root.style.width = `${vv.width}px`;
     root.style.height = `${vv.height}px`;

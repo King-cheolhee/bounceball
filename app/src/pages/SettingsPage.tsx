@@ -37,6 +37,8 @@ export function SettingsPage({ onBack, onExitRequest }: Props) {
         flexDirection: 'column',
         fontFamily: 'Inter, Pretendard, sans-serif',
         overflowY: 'auto',
+        // 전역 touch-action: none 차단을 이 화면에서만 해제 (터치 스크롤 허용)
+        touchAction: 'pan-y',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

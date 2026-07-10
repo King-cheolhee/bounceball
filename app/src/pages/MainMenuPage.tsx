@@ -48,6 +48,10 @@ export function MainMenuPage({ onStart, onSettings, onSelectStage, onExitRequest
         flexDirection: 'column',
         padding: 'calc(24px + var(--safe-top)) calc(40px + var(--safe-right)) calc(20px + var(--safe-bottom)) calc(40px + var(--safe-left))',
         fontFamily: 'Inter, Pretendard, sans-serif',
+        // 스테이지 선택 등으로 내용이 화면보다 길어지면 세로 스크롤 허용
+        // (전역 touch-action: none 차단을 이 화면에서만 해제)
+        overflowY: 'auto',
+        touchAction: 'pan-y',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>

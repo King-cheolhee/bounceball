@@ -28,6 +28,21 @@ function resetScrollOffset() {
     el.scrollTop = 0;
     el.scrollLeft = 0;
   }
+  compensateVisualOffset();
+}
+
+// 밀림이 문서 스크롤이 아니라 visualViewport의 offset(보이는 영역 자체의
+// 어긋남)으로 나타나는 웹뷰 대응 — 문서 스크롤로는 되돌릴 수 없으므로
+// #root를 offset만큼 이동시켜 보이는 영역에 맞춘다. offset이 0이면 no-op.
+// (#root에 transform이 걸리면 하위 fixed 요소들의 기준이 #root가 되지만,
+//  #root가 화면 전체를 차지하므로 레이아웃은 동일하게 유지된다.)
+function compensateVisualOffset() {
+  const vv = window.visualViewport;
+  const root = document.getElementById('root');
+  if (!vv || !root) return;
+  const x = Math.round(vv.offsetLeft);
+  const y = Math.round(vv.offsetTop);
+  root.style.transform = x !== 0 || y !== 0 ? `translate(${x}px, ${y}px)` : '';
 }
 
 export function useViewportSize(): ViewportSize {

@@ -63,6 +63,13 @@ export class InputHandler {
   }
 
   private classify(x: number): 'left' | 'right' {
+    // 터치 영역 자신의 실제 화면 위치 기준으로 판정 — 뷰포트 밀림 보정으로
+    // #root가 이동(transform)해도 clientX와 판정선이 어긋나지 않는다.
+    const el = this.element;
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0) return x - rect.left < rect.width / 2 ? 'left' : 'right';
+    }
     return x < this.getWidth() / 2 ? 'left' : 'right';
   }
 

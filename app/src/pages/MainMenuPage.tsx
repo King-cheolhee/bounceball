@@ -46,7 +46,9 @@ export function MainMenuPage({ onStart, onSettings, onSelectStage, onExitRequest
         color: '#fff',
         display: 'flex',
         flexDirection: 'column',
-        padding: 'calc(24px + var(--safe-top)) calc(40px + var(--safe-right)) calc(20px + var(--safe-bottom)) calc(40px + var(--safe-left))',
+        // 세로 여백은 화면 높이에 비례해 축소 — 토스 상단 바가 상시 공간을
+        // 차지해 실기기 가시 높이가 낮다 (시작 버튼이 잘리던 원인)
+        padding: 'calc(min(24px, 3vh) + var(--safe-top)) calc(40px + var(--safe-right)) calc(min(20px, 2.5vh) + var(--safe-bottom)) calc(40px + var(--safe-left))',
         fontFamily: 'Inter, Pretendard, sans-serif',
         // 스테이지 선택 등으로 내용이 화면보다 길어지면 세로 스크롤 허용
         // (전역 touch-action: none 차단을 이 화면에서만 해제)
@@ -56,33 +58,35 @@ export function MainMenuPage({ onStart, onSettings, onSelectStage, onExitRequest
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <div style={{ fontSize: 30, fontWeight: 900, letterSpacing: '0.06em' }}>탱탱볼해금</div>
+          <div style={{ fontSize: 'clamp(20px, 7vh, 30px)', fontWeight: 900, letterSpacing: '0.06em' }}>탱탱볼해금</div>
           <div style={{ fontSize: 11, opacity: 0.45, marginTop: 4 }}>
             『{STORY.tagline}』 — {STORY.taglineSub}
           </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-          <Button onClick={onExitRequest} variant="ghost" size="sm" ariaLabel="미니앱 닫기">
-            ✕ 닫기
-          </Button>
-          <Button onClick={onSettings} variant="ghost" size="sm" ariaLabel="설정">
-            ⚙ 설정 · 스킨
-          </Button>
+        {/* 가로(낮은) 화면 공간 절약 — 세로 스택 대신 한 줄 배치 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <div style={{ fontSize: 12, opacity: 0.7, fontVariantNumeric: 'tabular-nums' }}>
             ◆ {parts} · 스킨: {getSkin(selectedSkin).name}
           </div>
+          <Button onClick={onSettings} variant="ghost" size="sm" ariaLabel="설정">
+            ⚙ 설정 · 스킨
+          </Button>
+          <Button onClick={onExitRequest} variant="ghost" size="sm" ariaLabel="미니앱 닫기">
+            ✕ 닫기
+          </Button>
         </div>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 18 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 'min(18px, 2.5vh)' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 12, letterSpacing: '0.3em', opacity: 0.5 }}>
             {allCleared ? '시스템 재부팅 완료 ✓' : 'NEXT STAGE'}
           </div>
-          <div style={{ fontSize: 84, fontWeight: 900, lineHeight: 1, letterSpacing: '-0.02em', marginTop: 6 }}>
+          {/* 화면이 낮으면 숫자도 축소 — 시작 버튼까지 한 화면에 들어오게 */}
+          <div style={{ fontSize: 'clamp(44px, 18vh, 84px)', fontWeight: 900, lineHeight: 1, letterSpacing: '-0.02em', marginTop: 6 }}>
             {String(currentStage).padStart(2, '0')}
           </div>
-          <div style={{ fontSize: 13, opacity: 0.55, marginTop: 10 }}>
+          <div style={{ fontSize: 13, opacity: 0.55, marginTop: 'min(10px, 1.2vh)' }}>
             세이브 셀 {checkpointStage} · 최고 기록 Stage {maxClearedStage || '—'}
           </div>
         </div>
@@ -246,6 +250,7 @@ export function MainMenuPage({ onStart, onSettings, onSelectStage, onExitRequest
           letterSpacing: '0.18em',
           opacity: 0.45,
           textTransform: 'uppercase',
+          flexWrap: 'wrap',
         }}
       >
         <span>화면 좌측 터치 → 좌</span>
@@ -254,14 +259,18 @@ export function MainMenuPage({ onStart, onSettings, onSelectStage, onExitRequest
       </div>
 
       {/* 게임법 §33 초기화면 등급 표시 — 전체이용가는 초기화면 상시 표시로 매시간 표시 면제.
+          메뉴가 스크롤돼도 항상 보이도록 좌하단 고정(법정 상시 표시 보장).
           상세 제작정보표는 설정 화면에. */}
       <div
         style={{
+          position: 'fixed',
+          left: 'calc(12px + var(--safe-left))',
+          bottom: 'calc(10px + var(--safe-bottom))',
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          marginTop: 10,
-          alignSelf: 'flex-start',
+          zIndex: 2,
+          pointerEvents: 'none',
         }}
       >
         <RatingBadge size={40} />

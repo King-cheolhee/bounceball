@@ -40,9 +40,19 @@ function compensateVisualOffset() {
   const vv = window.visualViewport;
   const root = document.getElementById('root');
   if (!vv || !root) return;
-  const x = Math.round(vv.offsetLeft);
-  const y = Math.round(vv.offsetTop);
-  root.style.transform = x !== 0 || y !== 0 ? `translate(${x}px, ${y}px)` : '';
+  const x = vv.offsetLeft;
+  const y = vv.offsetTop;
+  if (x !== 0 || y !== 0) {
+    // 위치만 옮기면 #root 크기(=레이아웃 뷰포트)가 보이는 영역보다 커서
+    // 하단이 잘린다 — 크기도 보이는 영역과 일치시킨다.
+    root.style.transform = `translate(${x}px, ${y}px)`;
+    root.style.width = `${vv.width}px`;
+    root.style.height = `${vv.height}px`;
+  } else {
+    root.style.transform = '';
+    root.style.width = '';
+    root.style.height = '';
+  }
 }
 
 export function useViewportSize(): ViewportSize {

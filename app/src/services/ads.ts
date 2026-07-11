@@ -1,7 +1,7 @@
 /**
  * 인앱 광고 — 앱인토스 전체화면 광고(loadFullScreenAd / showFullScreenAd) 연동.
  *
- *  - 토스 앱/샌드박스 + SDK 지원: 실제 광고 노출(현재 테스트 광고 ID 사용).
+ *  - 토스 앱/샌드박스 + SDK 지원: 실제 광고 노출(전면형=운영 ID / 보상형=테스트 ID).
  *  - 일반 브라우저(개발·검증): GamePlayPage가 MockAdOverlay로 폴백 렌더.
  *
  * 앱인토스 정책 준수:
@@ -9,7 +9,8 @@
  *  - 광고 재생 중 게임 음악 일시정지, 종료 후 자동 재개(GamePlayPage가 showAd 상태로 처리).
  *  - 보상형은 보상 이벤트(userEarnedReward) 수신 시에만 보상 지급.
  *
- * ⚠️ 출시 전: 콘솔에서 발급받은 실제 adGroupId로 교체(현재는 토스 공식 테스트 ID).
+ * ⚠️ 광고 ID 상태(2026-07-11): 전면형은 콘솔 승인 운영 adGroupId 적용 완료.
+ *    보상형은 아직 승인 대기 → 테스트 ID 유지, 승인되면 교체할 것.
  *    인앱 광고 운영에는 사업자 등록이 필요하다.
  */
 import { isInTossEnv } from './sdk';
@@ -17,9 +18,11 @@ import { loadFullScreenAd, showFullScreenAd } from '@apps-in-toss/web-framework'
 
 export type AdType = 'interstitial' | 'rewarded';
 
-// 토스 공식 테스트 광고 ID (운영 ID 사용 시 제재 — 샌드박스/개발 단계에서는 테스트 ID만)
+// 광고 그룹 ID.
+//  - interstitial(전면형): 콘솔 발급 운영 ID (2026-07-11 승인).
+//  - rewarded(보상형): 승인 대기 중이라 토스 공식 테스트 ID 유지 (운영 ID 미승인 상태 사용 시 제재).
 const AD_GROUP_ID: Record<AdType, string> = {
-  interstitial: 'ait-ad-test-interstitial-id',
+  interstitial: 'ait.v2.live.b5a8766b61d547e4',
   rewarded: 'ait-ad-test-rewarded-id',
 };
 

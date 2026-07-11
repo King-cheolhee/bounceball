@@ -23,6 +23,10 @@ export default defineConfig({
   },
   // 이 게임은 카메라/위치/연락처 등 별도 권한 요청이 없다
   permissions: [],
+  // 게임용 내비게이션: 흰색 비게임 상단바 대신 우측 더보기·닫기만 화면 위에 표시
+  webViewProps: {
+    type: 'game',
+  },
   web: {
     host: 'localhost',
     port: 5173,

@@ -102,11 +102,10 @@ export function App() {
               onSelectStage={(n) => {
                 void startStage(n);
               }}
-              onExitRequest={() => setExitConfirm(true)}
             />
           )}
           {screen === 'settings' && (
-            <SettingsPage onBack={() => goToScreen('menu')} onExitRequest={() => setExitConfirm(true)} />
+            <SettingsPage onBack={() => goToScreen('menu')} />
           )}
           {screen === 'play' && <GamePlayPage onExit={() => goToScreen('menu')} />}
         </>

@@ -11,7 +11,6 @@ interface Props {
   onStart: () => void;
   onSettings: () => void;
   onSelectStage: (stage: number) => void;
-  onExitRequest: () => void;
 }
 
 /**
@@ -19,7 +18,7 @@ interface Props {
  * 클리어한 스테이지만큼 LCD 세그먼트가 한 칸씩 점등된다:
  * 죽어가던 게임기 화면이 플레이어의 진행으로 되살아나는 진행도 시각화.
  */
-export function MainMenuPage({ onStart, onSettings, onSelectStage, onExitRequest }: Props) {
+export function MainMenuPage({ onStart, onSettings, onSelectStage }: Props) {
   const currentStage = useGameStore((s) => s.currentStage);
   const checkpointStage = useGameStore((s) => s.checkpointStage);
   const maxClearedStage = useGameStore((s) => s.maxClearedStage);
@@ -56,7 +55,15 @@ export function MainMenuPage({ onStart, onSettings, onSelectStage, onExitRequest
         touchAction: 'pan-y',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          // 게임용 네이티브 더보기·닫기 버튼과 내부 UI가 겹치지 않게 비운다.
+          paddingRight: 'var(--game-nav-reserved-right)',
+        }}
+      >
         <div>
           <div style={{ fontSize: 'clamp(20px, 7vh, 30px)', fontWeight: 900, letterSpacing: '0.06em' }}>탱탱볼해금</div>
           <div style={{ fontSize: 11, opacity: 0.45, marginTop: 4 }}>
@@ -70,9 +77,6 @@ export function MainMenuPage({ onStart, onSettings, onSelectStage, onExitRequest
           </div>
           <Button onClick={onSettings} variant="ghost" size="sm" ariaLabel="설정">
             ⚙ 설정 · 스킨
-          </Button>
-          <Button onClick={onExitRequest} variant="ghost" size="sm" ariaLabel="미니앱 닫기">
-            ✕ 닫기
           </Button>
         </div>
       </div>

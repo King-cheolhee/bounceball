@@ -255,13 +255,28 @@ export function GamePlayPage({ onExit }: Props) {
         aria-hidden
       />
 
+      {/* 네이티브 더보기·닫기 영역에서는 좌우 이동 입력이 발생하지 않게 예약한다. */}
+      <div
+        aria-hidden
+        data-game-nav-blocker
+        style={{
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          width: 'calc(var(--game-nav-reserved-right) + var(--safe-right))',
+          height: 'calc(var(--game-nav-reserved-height) + var(--safe-top))',
+          touchAction: 'none',
+          zIndex: 4,
+        }}
+      />
+
       {/* HUD */}
       <div
         style={{
           position: 'absolute',
           top: 'calc(12px + var(--safe-top))',
           left: 'calc(16px + var(--safe-left))',
-          right: 'calc(16px + var(--safe-right))',
+          right: 'calc(var(--game-nav-reserved-right) + var(--safe-right))',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
